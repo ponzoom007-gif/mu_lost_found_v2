@@ -186,36 +186,95 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return DBWrapper(conn, is_postgres=False)
 
+USERS_SQL_PG = """
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    fullname VARCHAR(255) NOT NULL,
+    faculty VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    contact_phone VARCHAR(50),
+    is_admin INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+ITEMS_SQL_PG = """
+CREATE TABLE IF NOT EXISTS items (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    item_type VARCHAR(20) NOT NULL,
+    faculty_location VARCHAR(255) NOT NULL,
+    incident_date VARCHAR(50) NOT NULL,
+    incident_time VARCHAR(50) NOT NULL,
+    description TEXT,
+    verification_question TEXT,
+    item_image VARCHAR(500),
+    found_spot_image VARCHAR(500),
+    custody_type VARCHAR(50) DEFAULT 'keep_self',
+    drop_location_detail TEXT,
+    drop_spot_image VARCHAR(500),
+    contact_info VARCHAR(255),
+    views_count INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+USERS_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    fullname TEXT NOT NULL,
+    faculty TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    contact_phone TEXT,
+    is_admin INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+ITEMS_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    item_type TEXT NOT NULL,
+    faculty_location TEXT NOT NULL,
+    incident_date TEXT NOT NULL,
+    incident_time TEXT NOT NULL,
+    description TEXT,
+    verification_question TEXT,
+    item_image TEXT,
+    found_spot_image TEXT,
+    custody_type TEXT DEFAULT 'keep_self',
+    drop_location_detail TEXT,
+    drop_spot_image TEXT,
+    contact_info TEXT,
+    views_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+"""
+
 def check_and_init_db():
     try:
         conn = get_db_connection()
         if conn.is_postgres:
-            # Check if users table exists in PostgreSQL
-            cursor = conn.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')")
-            exists_row = cursor.fetchone()
-            exists = exists_row[0] if exists_row else False
-            if not exists:
-                if os.path.exists(SCHEMA_POSTGRES_PATH):
-                    with open(SCHEMA_POSTGRES_PATH, "r", encoding="utf-8") as f:
-                        conn.executescript(f.read())
-                        conn.commit()
-                print("Initialized PostgreSQL database tables.")
-            else:
-                # Ensure admin flag for default admin emails
-                for email in ADMIN_EMAILS:
-                    conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
-                conn.commit()
+            conn.execute(USERS_SQL_PG)
+            conn.execute(ITEMS_SQL_PG)
+            for email in ADMIN_EMAILS:
+                conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
+            conn.commit()
+            print("PostgreSQL tables checked and ready.")
         else:
-            # SQLite initialization
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-            if not cursor.fetchone():
-                if os.path.exists(SCHEMA_PATH):
-                    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-                        conn.executescript(f.read())
-                        conn.commit()
-                print("Initialized SQLite database tables.")
-            else:
-                # Auto-migrate SQLite
+            conn.execute(USERS_SQL_SQLITE)
+            conn.execute(ITEMS_SQL_SQLITE)
+            try:
                 cursor = conn.execute("PRAGMA table_info(items)")
                 item_cols = [col[1] for col in cursor.fetchall()]
                 if "views_count" not in item_cols:
@@ -225,11 +284,13 @@ def check_and_init_db():
                 user_cols = [col[1] for col in cursor.fetchall()]
                 if "is_admin" not in user_cols:
                     conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
-                for email in ADMIN_EMAILS:
-                    conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
-
-                conn.commit()
+            for email in ADMIN_EMAILS:
+                conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
+            conn.commit()
+            print("SQLite tables checked and ready.")
         conn.close()
     except Exception as e:
         print(f"Error checking/initializing database: {e}")
@@ -565,16 +626,23 @@ def login_google_callback():
 
 @app.route("/")
 def index():
-    conn = get_db_connection()
-    items = conn.execute("""
-        SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty 
-        FROM items 
-        LEFT JOIN users ON items.user_id = users.id 
-        ORDER BY incident_date DESC, incident_time DESC, items.id DESC
-    """).fetchall()
-    conn.close()
-
-    return render_template("index.html", items=items)
+    try:
+        conn = get_db_connection()
+        items = conn.execute("""
+            SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty 
+            FROM items 
+            LEFT JOIN users ON items.user_id = users.id 
+            ORDER BY incident_date DESC, incident_time DESC, items.id DESC
+        """).fetchall()
+        conn.close()
+        return render_template("index.html", items=items)
+    except Exception as e:
+        print(f"Index route DB exception: {e}")
+        try:
+            check_and_init_db()
+        except Exception:
+            pass
+        return render_template("index.html", items=[])
 
 @app.route("/report", methods=["GET", "POST"])
 @login_required

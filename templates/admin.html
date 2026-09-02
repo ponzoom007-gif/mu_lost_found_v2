@@ -104,7 +104,7 @@
                                     <span class="badge-role-user">👤 User</span>
                                 {% endif %}
                             </td>
-                            <td><small style="color: #718096;">{{ u['created_at'][:10] if u['created_at'] else '-' }}</small></td>
+                            <td><small style="color: #718096;">{{ (u['created_at'] | string)[:10] if u['created_at'] else '-' }}</small></td>
                             <td style="text-align: center;">
                                 {% if u['id'] == session.get('user_id') %}
                                     <span style="color: #A0AEC0; font-size: 0.85rem;">(บัญชีคุณ)</span>

@@ -63,8 +63,8 @@
                 
                 <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
                     <p style="font-size: 0.9rem; color: var(--text-muted);">
-                        👤 ผู้ลงประกาศ: <strong style="color: var(--text-main);">{{ item['poster_name'] }}</strong> ({{ item['poster_faculty'] }})<br>
-                        ✉️ อีเมลยืนยันตัวตน: <code>{{ item['poster_email'] }}</code>
+                        👤 ผู้ลงประกาศ: <strong style="color: var(--text-main);">{{ item['poster_name'] or 'ไม่ระบุชื่อ' }}</strong> ({{ item['poster_faculty'] or '-' }})<br>
+                        ✉️ อีเมลยืนยันตัวตน: <code>{{ item['poster_email'] or '-' }}</code>
                     </p>
                 </div>
             </div>
@@ -94,7 +94,7 @@
                     <div class="highlight-box" style="background: #FEF2F2; border: 1.5px solid #FECACA;">
                         <h4 style="color: #991B1B; font-size: 1rem;">📢 ข้อมูลการติดต่อเจ้าของสิ่งของ</h4>
                         <p style="margin-top: 4px; font-size: 0.92rem; color: #7F1D1D;">หากคุณพบเห็นหรือเก็บสิ่งของนี้ได้ โปรดติดต่อ:</p>
-                        <p class="lead-text" style="color: #DC2626;">{{ item['contact_info'] or 'ติดต่อผ่านอีเมล: ' + item['poster_email'] }}</p>
+                        <p class="lead-text" style="color: #DC2626;">{{ item['contact_info'] or ('ติดต่อผ่านอีเมล: ' ~ (item['poster_email'] or '-')) }}</p>
                     </div>
                 {% else %}
                     {% if item['custody_type'] == 'dropped' %}

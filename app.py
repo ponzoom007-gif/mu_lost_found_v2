@@ -57,7 +57,11 @@ SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "item-images")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static")
+)
 handler = app  # WSGI Handler export for Vercel
 app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
 
@@ -110,7 +114,7 @@ ADMIN_EMAILS = {
 def is_admin():
     if "user_id" not in session:
         return False
-    email = session.get("email", "").lower()
+    email = str(session.get("email") or "").lower().strip()
     return email in ADMIN_EMAILS or session.get("is_admin") == 1
 
 @app.template_filter("image_url")

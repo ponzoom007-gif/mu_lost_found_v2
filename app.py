@@ -529,8 +529,11 @@ def login_google():
     if "user_id" in session:
         return redirect(url_for("index"))
 
-    if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
-        flash("⚙️ ระบบ Google OAuth พร้อมใช้งาน! (กรุณาระบุ GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน .env หรือ Railway Variables เพื่อเปิดใช้งานบัญชีจริง)", "info")
+    client_id = (os.environ.get("GOOGLE_CLIENT_ID") or GOOGLE_CLIENT_ID or "").strip()
+    client_secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET or "").strip()
+
+    if not (client_id and client_secret):
+        flash("⚙️ ระบบ Google OAuth พร้อมใช้งาน! (กรุณาระบุ GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน Environment Variables เพื่อเปิดใช้งานบัญชีจริง)", "info")
         return redirect(url_for("login"))
     
     redirect_uri = url_for("login_google_callback", _external=True)
@@ -539,7 +542,7 @@ def login_google():
 
     google_auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"client_id={urllib.parse.quote(client_id)}&"
         f"redirect_uri={urllib.parse.quote(redirect_uri)}&"
         "response_type=code&"
         "scope=openid%20email%20profile&"
@@ -561,10 +564,13 @@ def login_google_callback():
         if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
             redirect_uri = redirect_uri.replace("http://", "https://", 1)
 
+        client_id = (os.environ.get("GOOGLE_CLIENT_ID") or GOOGLE_CLIENT_ID or "").strip()
+        client_secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET or "").strip()
+
         token_data = urllib.parse.urlencode({
             "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "redirect_uri": redirect_uri,
             "grant_type": "authorization_code"
         }).encode("utf-8")

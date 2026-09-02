@@ -26,7 +26,6 @@ except ImportError:
     HAS_PSYCOPG2 = False
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE_PATH = os.path.join(BASE_DIR, "database.db")
 SCHEMA_PATH = os.path.join(BASE_DIR, "schema.sql")
 SCHEMA_POSTGRES_PATH = os.path.join(BASE_DIR, "schema_postgres.sql")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
@@ -35,6 +34,20 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Vercel Serverless environment detection & read-only filesystem handling
+IS_VERCEL = os.environ.get("VERCEL") == "1" or os.environ.get("NOW_REGION") is not None
+if IS_VERCEL and not DATABASE_URL:
+    DATABASE_PATH = "/tmp/database.db"
+    bundled_db = os.path.join(BASE_DIR, "database.db")
+    if not os.path.exists(DATABASE_PATH) and os.path.exists(bundled_db):
+        try:
+            import shutil
+            shutil.copy2(bundled_db, DATABASE_PATH)
+        except Exception:
+            pass
+else:
+    DATABASE_PATH = os.path.join(BASE_DIR, "database.db")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
@@ -45,6 +58,7 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
 app = Flask(__name__)
+handler = app  # WSGI Handler export for Vercel
 app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
 
 # 1. จำกัดขนาดไฟล์อัปโหลดไม่เกิน 5 MB ป้องกัน Denial of Service (DoS)
@@ -54,8 +68,17 @@ ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/pjpeg", "image/webp",
     "image/jpg", "image/x-png", "image/jfif"
 }
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Safe upload directory creation on read-only serverless environments
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+except Exception:
+    app.config["UPLOAD_FOLDER"] = "/tmp/uploads"
+    try:
+        os.makedirs("/tmp/uploads", exist_ok=True)
+    except Exception:
+        pass
 
 # Regex ตรวจสอบโดเมนอีเมลมหิดลเท่านั้น
 MAHIDOL_EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@([a-zA-Z0-9-]+\.)*mahidol\.(ac\.th|edu)$"
@@ -142,14 +165,26 @@ class DBWrapper:
 def get_db_connection():
     if DATABASE_URL and HAS_PSYCOPG2:
         try:
-            conn = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
+            conn_str = DATABASE_URL
+            # Add sslmode for Supabase/PostgreSQL if not present
+            if "sslmode=" not in conn_str and "localhost" not in conn_str and "127.0.0.1" not in conn_str:
+                sep = "&" if "?" in conn_str else "?"
+                conn_str = f"{conn_str}{sep}sslmode=require"
+
+            conn = psycopg2.connect(conn_str, cursor_factory=DictCursor, connect_timeout=8)
             return DBWrapper(conn, is_postgres=True)
         except Exception as e:
             print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
     
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    return DBWrapper(conn, is_postgres=False)
+    try:
+        conn = sqlite3.connect(DATABASE_PATH, timeout=5)
+        conn.row_factory = sqlite3.Row
+        return DBWrapper(conn, is_postgres=False)
+    except Exception as e:
+        print(f"SQLite connection failed ({e}), using in-memory database.")
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return DBWrapper(conn, is_postgres=False)
 
 def check_and_init_db():
     try:
@@ -921,6 +956,7 @@ def admin_toggle_status(item_id):
     return redirect(url_for("admin_dashboard"))
 
 if __name__ == "__main__":
-    init_db()
+    check_and_init_db()
     port = int(os.environ.get("PORT", 5001))
     app.run(debug=True, host="0.0.0.0", port=port)
+

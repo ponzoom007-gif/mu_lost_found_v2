@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>✏️ แก้ไขข้อมูลการประกาศ</h2>
+        <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-reset" style="text-decoration: none; padding: 8px 16px;">✕ ยกเลิก</a>
+    </div>
+
+    <form action="{{ url_for('edit_item', item_id=item['id']) }}" method="POST" enctype="multipart/form-data">
+        
+        <div class="form-group">
+            <label>เลือกประเภทการประกาศ *</label>
+            <div class="type-toggle-group">
+                <label class="type-toggle-card {% if item['item_type'] == 'found' %}selected-found{% endif %}" id="label_found">
+                    <input type="radio" name="item_type" value="found" {% if item['item_type'] == 'found' %}checked{% endif %}> 
+                    🟢 เก็บของได้ (Found)
+                </label>
+                <label class="type-toggle-card {% if item['item_type'] == 'lost' %}selected-lost{% endif %}" id="label_lost">
+                    <input type="radio" name="item_type" value="lost" {% if item['item_type'] == 'lost' %}checked{% endif %}> 
+                    🔴 ทำของหาย (Lost)
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="title">ชื่อสิ่งของ *</label>
+            <input type="text" id="title" name="title" value="{{ item['title'] }}" required>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="category">หมวดหมู่สิ่งของ *</label>
+                <select id="category" name="category" required>
+                    {% set categories = [
+                        "อุปกรณ์อิเล็กทรอนิกส์", "กระเป๋า / กระเป๋าสตางค์", 
+                        "บัตรประชาชน / บัตรนักศึกษา", "กุญแจ / พวงกุญแจ", 
+                        "เอกสาร / ตำราเรียน", "เครื่องแต่งกาย / เครื่องประดับ", "อื่นๆ"
+                    ] %}
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {% if item['category'] == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="faculty_location">คณะ / สถานที่ที่พบหรือทำหาย *</label>
+                <select id="faculty_location" name="faculty_location" required>
+                    {% for loc in locations %}
+                        <option value="{{ loc }}" {% if item['faculty_location'] == loc %}selected{% endif %}>{{ loc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="incident_date">📅 วันที่เกิดเหตุ *</label>
+                <input type="date" id="incident_date" name="incident_date" value="{{ item['incident_date'] }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="incident_time">⏰ เวลาโดยประมาณ *</label>
+                <input type="time" id="incident_time" name="incident_time" value="{{ item['incident_time'] }}" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">รายละเอียดและลักษณะเพิ่มเติม</label>
+            <textarea id="description" name="description">{{ item['description'] or '' }}</textarea>
+        </div>
+
+        <!-- กล่องยืนยันความเป็นเจ้าของ (Anti-Spoofing) -->
+        <div class="form-group" style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 16px; border-radius: var(--radius-md);">
+            <label id="verification_label" for="verification_question" style="color: #166534; font-weight: 700;">🛡️ คำถามยืนยันความเป็นเจ้าของ (Anti-Spoofing Question)</label>
+            <input type="text" id="verification_question" name="verification_question" value="{{ item['verification_question'] or '' }}" placeholder="เช่น 'กระเป๋ามีบัตรอะไรอยู่ข้างในบ้าง?'">
+            <small id="verification_hint" style="color: #15803D; font-size: 0.85rem; margin-top: 5px; display: block;">* เจ้าของที่มาขอรับของจะต้องตอบคำถามนี้ให้ถูกต้อง เพื่อป้องกันมิจฉาชีพสวมรอย</small>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="item_image">📷 รูปถ่ายสิ่งของ (สูงสุด 5MB)</label>
+                {% if item['item_image'] %}
+                    <div style="margin-bottom: 8px;">
+                        <small style="color: var(--text-muted);">รูปปัจจุบัน:</small><br>
+                        <img src="{{ item['item_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
+                    </div>
+                {% endif %}
+                <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp">
+                <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+            </div>
+
+            <div class="form-group">
+                <label for="found_spot_image">📍 รูปถ่ายจุดที่พบ / ทำหาย (สูงสุด 5MB)</label>
+                {% if item['found_spot_image'] %}
+                    <div style="margin-bottom: 8px;">
+                        <small style="color: var(--text-muted);">รูปปัจจุบัน:</small><br>
+                        <img src="{{ item['found_spot_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
+                    </div>
+                {% endif %}
+                <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp">
+                <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+            </div>
+        </div>
+
+        <div id="custody_wrapper">
+            <hr style="margin: 24px 0; border: 0; border-top: 1.5px solid var(--border-color);">
+
+            <div class="form-group">
+                <label>การจัดการสิ่งของในปัจจุบัน *</label>
+                <div class="radio-group" style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="font-weight: 500; cursor: pointer;">
+                        <input type="radio" name="custody_type" value="dropped" id="custody_dropped" {% if item['custody_type'] == 'dropped' %}checked{% endif %}> 
+                        🏢 ฝากไว้ที่จุดรับฝาก / หน่วยงาน
+                    </label>
+                    <label style="font-weight: 500; cursor: pointer;">
+                        <input type="radio" name="custody_type" value="keep_self" id="custody_keep" {% if item['custody_type'] == 'keep_self' %}checked{% endif %}> 
+                        🙋‍♂️ เก็บไว้กับตัวเอง (รอเจ้าของติดต่อเพื่อนัดรับ)
+                    </label>
+                </div>
+            </div>
+
+            <div id="drop_section" class="conditional-box">
+                <div class="form-group">
+                    <label for="drop_location_detail">ระบุจุดที่นำของไปฝากไว้อย่างละเอียด *</label>
+                    <input type="text" id="drop_location_detail" name="drop_location_detail" value="{{ item['drop_location_detail'] or '' }}" placeholder="เช่น ป้อมยามคณะวิศวะ">
+                </div>
+                <div class="form-group">
+                    <label for="drop_spot_image">📸 รูปถ่ายจุดที่ฝากไว้</label>
+                    {% if item['drop_spot_image'] %}
+                        <div style="margin-bottom: 8px;">
+                            <small style="color: var(--text-muted);">รูปปัจจุบัน:</small><br>
+                            <img src="{{ item['drop_spot_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
+                        </div>
+                    {% endif %}
+                    <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp">
+                    <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+                </div>
+            </div>
+        </div>
+
+        <div id="contact_section" class="conditional-box" style="display: none;">
+            <div class="form-group">
+                <label id="contact_label" for="contact_info">ช่องทางการติดต่อคุณ (ผู้เก็บได้) *</label>
+                <input type="text" id="contact_info" name="contact_info" value="{{ item['contact_info'] or '' }}" placeholder="เช่น Line ID / เบอร์โทร">
+            </div>
+        </div>
+
+        <button type="submit" class="btn-submit btn-block" style="margin-top: 10px;">💾 บันทึกการเปลี่ยนแปลง</button>
+    </form>
+</div>
+{% endblock %}

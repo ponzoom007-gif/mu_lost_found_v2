@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero-section">
+    <span class="hero-badge">🎓 Mahidol University Community Hub</span>
+    <h1>ศูนย์แจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</h1>
+    <p>พื้นที่ปลอดภัยสำหรับชาวมหิดลในการแจ้งของหายและส่งคืนสิ่งของที่เก็บได้</p>
+</div>
+
+<div class="filter-card">
+    <div class="filter-form">
+        <input type="text" id="liveSearchInput" placeholder="🔍 ค้นหาชื่อสิ่งของ, รายละเอียด..." autocomplete="off">
+        
+        <select id="liveFacultyFilter">
+            <option value="">🏛️ ทุกคณะ / ทุกสถานที่</option>
+            {% for loc in locations %}
+                <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+        </select>
+
+        <select id="liveTypeFilter">
+            <option value="">ทั้งหมด (หาย & พบ)</option>
+            <option value="found">🟢 เก็บของได้ (Found)</option>
+            <option value="lost">🔴 ทำของหาย (Lost)</option>
+        </select>
+
+        <input type="date" id="liveDateFilter" title="แสดงประกาศตั้งแต่วันที่เลือกเป็นต้นมาจนถึงปัจจุบัน">
+
+        <button type="button" id="btnResetFilter" class="btn-reset">ล้างการค้นหา</button>
+    </div>
+</div>
+
+<div id="noLiveResults" class="empty-state" style="display: none;">
+    <p>🔍 ไม่พบสิ่งของที่ตรงกับเงื่อนไขการค้นหาของคุณ</p>
+    <small style="color: #94A3B8; margin-top: 6px; display: block;">ลองเปลี่ยนคำค้นหา หรือเลือกสถานที่อื่นๆ</small>
+</div>
+
+<div class="items-grid" id="itemsContainer">
+    {% for item in items %}
+    <div class="item-card {% if item['status'] == 'returned' %}item-returned{% endif %}"
+         data-title="{{ item['title'] | lower }}"
+         data-desc="{{ (item['description'] or '') | lower }}"
+         data-location="{{ item['faculty_location'] }}"
+         data-type="{{ item['item_type'] }}"
+         data-date="{{ item['incident_date'] }}">
+        
+        <div class="card-img-wrapper">
+            <div class="card-badge {% if item['item_type'] == 'found' %}badge-found{% else %}badge-lost{% endif %}">
+                {{ "🟢 เก็บได้" if item['item_type'] == 'found' else "🔴 ทำหาย" }}
+            </div>
+            
+            {% if item['item_image'] %}
+                <img src="{{ item['item_image'] | image_url }}" alt="{{ item['title'] }}" class="card-img" loading="lazy">
+            {% else %}
+                <div class="no-img-placeholder">ไม่ได้แนบรูปสิ่งของ</div>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            <h3>{{ item['title'] }}</h3>
+            <p class="location-tag">📍 {{ item['faculty_location'] }}</p>
+            <p class="time-tag">
+                <span>🗓️ {{ item['incident_date'] }} · ⏰ {{ item['incident_time'] }} น.</span>
+                <span class="badge-views-pill">👁️ {{ item['views_count'] or 0 }}</span>
+            </p>
+            
+            <div class="custody-info">
+                {% if item['item_type'] == 'found' %}
+                    {% if item['custody_type'] == 'dropped' %}
+                        <span class="tag-dropped">🏢 ฝากไว้: {{ item['drop_location_detail'] }}</span>
+                    {% else %}
+                        <span class="tag-keep">🙋‍♂️ เก็บไว้กับตัวผู้พบ (ติดต่อรับของ)</span>
+                    {% endif %}
+                {% else %}
+                    <span class="tag-lost-seeking">📢 เจ้าของกำลังตามหา</span>
+                {% endif %}
+            </div>
+
+            {% if item['status'] == 'returned' %}
+                <div class="status-success">
+                    {{ "✓ ได้รับของคืนเรียบร้อยแล้ว" if item['item_type'] == 'lost' else "✓ ส่งคืนเจ้าของเรียบร้อยแล้ว" }}
+                </div>
+            {% endif %}
+
+            <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-detail">ดูรายละเอียด & ติดต่อ →</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p style="font-size: 1.3rem; margin-bottom: 8px;">📦 ยังไม่มีรายการประกาศในระบบ</p>
+        <p style="font-size: 0.95rem; color: #94A3B8;">หากคุณทำของหาย หรือเก็บของได้ สามารถเริ่มลงประกาศได้ทันที</p>
+        {% if session.get('user_id') %}
+            <a href="{{ url_for('report') }}" class="btn-nav" style="display: inline-block; margin-top: 16px; text-decoration: none;">+ เริ่มลงประกาศตอนนี้</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="btn-nav" style="display: inline-block; margin-top: 16px; text-decoration: none;">เข้าสู่ระบบเพื่อลงประกาศ</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

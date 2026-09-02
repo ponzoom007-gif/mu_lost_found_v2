@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="detail-container">
+    <a href="{{ url_for('index') }}" class="back-link">← กลับหน้ารายการประกาศทั้งหมด</a>
+    
+    <div class="detail-header">
+        <div>
+            <h2>{{ item['title'] }}</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">
+                หมวดหมู่: <strong style="color: var(--text-main);">{{ item['category'] }}</strong>
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <span class="badge-views-pill" style="font-size: 0.88rem; padding: 6px 14px;">👁️ เข้าชม {{ item['views_count'] or 0 }} ครั้ง</span>
+            <span class="card-badge {% if item['item_type'] == 'found' %}badge-found{% else %}badge-lost{% endif %}" style="position: static; font-size: 0.9rem; padding: 6px 14px;">
+                {{ "🟢 เก็บของได้ (Found)" if item['item_type'] == 'found' else "🔴 ทำของหาย (Lost)" }}
+            </span>
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <!-- แกลเลอรีรูปภาพความคมชัดสูง -->
+        <div class="image-gallery">
+            <div class="img-box img-box-hero">
+                <h4>📸 รูปภาพสิ่งของ</h4>
+                {% if item['item_image'] %}
+                    <img src="{{ item['item_image'] | image_url }}" alt="{{ item['title'] }}" loading="eager">
+                {% else %}
+                    <div class="no-img-placeholder" style="height: 260px;">ไม่ได้แนบรูปสิ่งของ</div>
+                {% endif %}
+            </div>
+
+            {% if item['found_spot_image'] %}
+            <div class="img-box">
+                <h4>📍 รูปถ่ายบริเวณจุดที่พบ / ทำหาย</h4>
+                <img src="{{ item['found_spot_image'] | image_url }}" alt="จุดที่เกิดเหตุ" loading="lazy">
+            </div>
+            {% endif %}
+
+            {% if item['custody_type'] == 'dropped' and item['drop_spot_image'] %}
+            <div class="img-box">
+                <h4>🏢 รูปถ่ายจุดที่นำไปส่งมอบ / ฝากไว้</h4>
+                <img src="{{ item['drop_spot_image'] | image_url }}" alt="จุดรับฝาก" loading="lazy">
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- กล่องข้อมูลรายละเอียดสิ่งของและการติดต่อ -->
+        <div class="info-sidebar">
+            <div class="info-card">
+                <h3>📍 ข้อมูลสถานที่และช่วงเวลา</h3>
+                <p><strong>สถานที่ / คณะ:</strong> {{ item['faculty_location'] }}</p>
+                <p><strong>วันที่เกิดเหตุ:</strong> {{ item['incident_date'] }}</p>
+                <p><strong>เวลาโดยประมาณ:</strong> {{ item['incident_time'] }} น.</p>
+                
+                <div style="margin-top: 14px; padding-top: 14px; border-top: 1.5px dashed var(--border-color);">
+                    <p style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">รายละเอียดเพิ่มเติม:</p>
+                    <p style="background: #F8FAFC; padding: 12px; border-radius: var(--radius-sm); color: #334155; line-height: 1.6;">
+                        {{ item['description'] or 'ไม่มีรายละเอียดเพิ่มเติมระบุไว้' }}
+                    </p>
+                </div>
+                
+                <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+                    <p style="font-size: 0.9rem; color: var(--text-muted);">
+                        👤 ผู้ลงประกาศ: <strong style="color: var(--text-main);">{{ item['poster_name'] }}</strong> ({{ item['poster_faculty'] }})<br>
+                        ✉️ อีเมลยืนยันตัวตน: <code>{{ item['poster_email'] }}</code>
+                    </p>
+                </div>
+            </div>
+
+            <!-- กล่องคำถามยืนยันความเป็นเจ้าของ (Anti-Spoofing) / จุดสังเกต -->
+            {% if item['verification_question'] %}
+                {% if item['item_type'] == 'found' %}
+                <div class="proof-box-found">
+                    <h4 style="color: #065F46; font-size: 1.05rem; margin-bottom: 6px;">🛡️ คำถามยืนยันความเป็นเจ้าของ (Anti-Spoofing)</h4>
+                    <p style="font-size: 1.05rem; font-weight: 600; color: #047857; margin-bottom: 6px;">"{{ item['verification_question'] }}"</p>
+                    <small style="color: #065F46; display: block;">💡 สำหรับเจ้าของสิ่งของ: โปรดเตรียมคำตอบนี้เพื่อยืนยันกับผู้เก็บได้หรือเจ้าหน้าที่ประจำจุดรับฝาก</small>
+                </div>
+                {% else %}
+                <div class="proof-box-lost">
+                    <h4 style="color: #92400E; font-size: 1.05rem; margin-bottom: 6px;">🔍 จุดสังเกตเฉพาะที่ผู้ทำของหายระบุไว้</h4>
+                    <p style="font-size: 1.05rem; font-weight: 600; color: #78350F; margin-bottom: 6px;">"{{ item['verification_question'] }}"</p>
+                    <small style="color: #92400E; display: block;">💡 สำหรับผู้พบเห็น: ช่วยตรวจสอบลักษณะพิเศษข้างต้นเพื่อยืนยันว่าเป็นของชิ้นเดียวกัน</small>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <!-- กล่องข้อมูลการติดต่อ / จุดส่งมอบ -->
+            <div class="action-card">
+                <h3>สถานะและช่องทางติดต่อ</h3>
+                
+                {% if item['item_type'] == 'lost' %}
+                    <div class="highlight-box" style="background: #FEF2F2; border: 1.5px solid #FECACA;">
+                        <h4 style="color: #991B1B; font-size: 1rem;">📢 ข้อมูลการติดต่อเจ้าของสิ่งของ</h4>
+                        <p style="margin-top: 4px; font-size: 0.92rem; color: #7F1D1D;">หากคุณพบเห็นหรือเก็บสิ่งของนี้ได้ โปรดติดต่อ:</p>
+                        <p class="lead-text" style="color: #DC2626;">{{ item['contact_info'] or 'ติดต่อผ่านอีเมล: ' + item['poster_email'] }}</p>
+                    </div>
+                {% else %}
+                    {% if item['custody_type'] == 'dropped' %}
+                        <div class="highlight-box" style="background: var(--mu-blue-soft); border: 1.5px solid #BFDBFE;">
+                            <h4 style="color: var(--mu-blue); font-size: 1rem;">🏢 สิ่งของถูกนำไปฝากไว้ที่:</h4>
+                            <p class="lead-text">{{ item['drop_location_detail'] }}</p>
+                            <small style="color: #475569; margin-top: 4px; display: block;">สามารถเดินทางไปติดต่อขอรับได้ตามจุดที่ระบุไว้ข้างต้นในเวลาทำการ</small>
+                        </div>
+                    {% else %}
+                        <div class="highlight-box" style="background: var(--mu-gold-soft); border: 1.5px solid #FDE68A;">
+                            <h4 style="color: #92400E; font-size: 1rem;">🙋‍♂️ สิ่งของอยู่กับผู้เก็บได้</h4>
+                            <p style="margin-top: 4px; font-size: 0.92rem; color: #78350F;">ช่องทางติดต่อเพื่อนัดรับของ:</p>
+                            <p class="lead-text" style="color: #92400E;">{{ item['contact_info'] }}</p>
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+                <!-- ปุ่มจัดการสำหรับเจ้าของโพสต์ -->
+                {% if session.get('user_id') == item['user_id'] %}
+                    <div style="display: flex; gap: 10px; margin: 16px 0;">
+                        <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn-detail" style="flex: 1; background: #F59E0B; color: white; border-color: #D97706; text-align: center;">
+                            ✏️ แก้ไขข้อมูลประกาศ
+                        </a>
+                        <form action="{{ url_for('delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้ถาวร? รูปภาพทั้งหมดจะถูกลบด้วย');" style="margin: 0;">
+                            <button type="submit" class="btn-detail" style="background: #EF4444; color: white; border-color: #DC2626; cursor: pointer; padding: 10px 18px;">
+                                🗑️ ลบประกาศ
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+
+                <!-- ปุ่มเปลี่ยนสถานะเป็นส่งคืนสำเร็จ -->
+                {% if item['status'] == 'active' %}
+                    {% if session.get('user_id') == item['user_id'] %}
+                        <form action="{{ url_for('mark_returned', item_id=item['id']) }}" method="POST" onsubmit="return confirm('{{ 'ยืนยันว่าได้รับของคืนเรียบร้อยแล้วใช่หรือไม่?' if item['item_type'] == 'lost' else 'ยืนยันว่าส่งคืนเจ้าของเรียบร้อยแล้วใช่หรือไม่?' }}');" style="margin-top: 10px;">
+                            <button type="submit" class="btn-success-action">
+                                {{ "✓ ได้รับของคืนแล้ว / ปิดประกาศ" if item['item_type'] == 'lost' else "✓ ส่งคืนเจ้าของสำเร็จแล้ว / ปิดประกาศ" }}
+                            </button>
+                        </form>
+                    {% else %}
+                        <p style="font-size: 0.88rem; color: var(--text-muted); text-align: center; margin-top: 12px;">
+                            ℹ️ เฉพาะคุณ {{ item['poster_name'] }} (ผู้ลงประกาศ) เท่านั้นที่สามารถกดปิดรายการได้
+                        </p>
+                    {% endif %}
+                {% else %}
+                    <div class="returned-banner" style="margin-top: 10px;">
+                        {{ "🎉 รายการนี้ได้รับของคืนเรียบร้อยแล้ว" if item['item_type'] == 'lost' else "🎉 รายการนี้ส่งคืนเจ้าของเรียบร้อยแล้ว" }}
+                    </div>
+                {% endif %}
+
+                <!-- กล่องจัดการด่วนสำหรับ Admin -->
+                {% if is_admin and session.get('user_id') != item['user_id'] %}
+                    <div style="margin-top: 20px; padding: 14px; background: #FAF5FF; border: 1.5px dashed #A855F7; border-radius: var(--radius-md);">
+                        <strong style="color: #6B21A8; font-size: 0.9rem; display: block; margin-bottom: 8px;">👑 การจัดการในฐานะ Admin:</strong>
+                        <div style="display: flex; gap: 8px;">
+                            <form action="{{ url_for('admin_toggle_status', item_id=item['id']) }}" method="POST" style="flex: 1; margin: 0;">
+                                <button type="submit" class="btn-detail" style="background: #9333EA; color: white; border: none; width: 100%; cursor: pointer;">
+                                    {{ "🔄 สลับเป็นกำลังติดตาม" if item['status'] == 'returned' else "✓ สลับเป็นส่งคืนแล้ว" }}
+                                </button>
+                            </form>
+                            <form action="{{ url_for('admin_delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('แอดมินยืนยันลบโพสต์นี้ถาวร?');" style="margin: 0;">
+                                <button type="submit" class="btn-detail" style="background: #DC2626; color: white; border: none; cursor: pointer; padding: 10px 16px;">
+                                    🗑️ ลบโพสต์
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

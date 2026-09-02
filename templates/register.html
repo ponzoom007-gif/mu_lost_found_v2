@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-card" style="max-width: 580px;">
+    <div class="auth-header">
+        <span class="logo-badge" style="display: inline-block; margin-bottom: 12px; font-size: 1.3rem;">MU</span>
+        <h2>สมัครสมาชิกชาวมหิดล</h2>
+        <p class="auth-subtitle">ระบบจำกัดการเข้าใช้งานเฉพาะนักศึกษาและบุคลากรมหาวิทยาลัยมหิดล</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('register') }}">
+        <div class="form-group">
+            <label for="email">อีเมลมหาวิทยาลัยมหิดล (@student.mahidol.ac.th หรือ @mahidol.edu) *</label>
+            <input type="email" id="email" name="email" value="{{ form_data.get('email', '') if form_data else '' }}" required placeholder="เช่น somchai.suk@student.mahidol.ac.th" pattern="^[a-zA-Z0-9_.+-]+@([a-zA-Z0-9-]+\.)?mahidol\.(ac\.th|edu)$" title="ต้องเป็นอีเมลที่ลงท้ายด้วย @student.mahidol.ac.th หรือ @mahidol.edu">
+            <small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: block;">* เพื่อยืนยันความปลอดภัยและความถูกต้องของข้อมูล</small>
+        </div>
+
+        <div class="form-group">
+            <label for="fullname">ชื่อ-นามสกุลจริง *</label>
+            <input type="text" id="fullname" name="fullname" value="{{ form_data.get('fullname', '') if form_data else '' }}" required placeholder="เช่น นายสมชาย สุขเกษม">
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="faculty">คณะ / สังกัด *</label>
+                <select id="faculty" name="faculty" required>
+                    {% for loc in locations %}
+                        <option value="{{ loc }}" {% if form_data and form_data.get('faculty') == loc %}selected{% endif %}>{{ loc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="contact_phone">เบอร์โทรศัพท์ติดต่อ</label>
+                <input type="text" id="contact_phone" name="contact_phone" value="{{ form_data.get('contact_phone', '') if form_data else '' }}" placeholder="เช่น 081-xxx-xxxx">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="password">รหัสผ่าน (ขั้นต่ำ 6 ตัวอักษร) *</label>
+                <input type="password" id="password" name="password" required minlength="6" placeholder="กำหนดรหัสผ่าน">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">ยืนยันรหัสผ่าน *</label>
+                <input type="password" id="confirm_password" name="confirm_password" required minlength="6" placeholder="ยืนยันรหัสผ่านอีกครั้ง">
+            </div>
+        </div>
+
+        <button type="submit" class="btn-submit btn-block" style="margin-top: 10px;">ยืนยันการสมัครสมาชิก</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>มีบัญชีอยู่แล้ว? <a href="{{ url_for('login') }}">เข้าสู่ระบบที่นี่</a></p>
+    </div>
+</div>
+{% endblock %}

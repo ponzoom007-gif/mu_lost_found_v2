@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-header">
+        <span class="logo-badge" style="display: inline-block; margin-bottom: 12px; font-size: 1.3rem;">MU</span>
+        <h2>เข้าสู่ระบบ</h2>
+        <p class="auth-subtitle">ระบบแจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="email">อีเมลมหาวิทยาลัยมหิดล</label>
+            <input type="email" id="email" name="email" value="{{ email or '' }}" required placeholder="เช่น name.sur@student.mahidol.ac.th" autocomplete="email">
+            <small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: block;">รองรับ @student.mahidol.ac.th และ @mahidol.edu</small>
+        </div>
+
+        <div class="form-group">
+            <label for="password">รหัสผ่าน</label>
+            <input type="password" id="password" name="password" required placeholder="กรอกรหัสผ่านของคุณ" autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn-submit btn-block" style="margin-top: 10px;">เข้าสู่ระบบ</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>ยังไม่มีบัญชีผู้ใช้งาน? <a href="{{ url_for('register') }}">สมัครสมาชิกด้วยเมลมหิดล</a></p>
+    </div>
+</div>
+{% endblock %}

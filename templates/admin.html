@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-header">
+    <div>
+        <h2>👑 แผงควบคุมระบบ (Admin Dashboard)</h2>
+        <p style="color: #718096; margin-top: 4px;">ระบบบริหารจัดการข้อมูลสมาชิก ประกาศสิ่งของ และสถิติภาพรวม</p>
+    </div>
+    <div>
+        <span class="badge-admin">ผู้ดูแลระบบ: {{ session.get('fullname') }}</span>
+    </div>
+</div>
+
+<!-- สถิติภาพรวม -->
+<div class="admin-stats-grid">
+    <div class="stat-card stat-views">
+        <div class="stat-icon">👁️</div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.total_views }}</span>
+            <span class="stat-label">ยอดเข้าชมทั้งหมด</span>
+        </div>
+    </div>
+    
+    <div class="stat-card stat-users">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.total_users }}</span>
+            <span class="stat-label">สมาชิกทั้งหมด</span>
+        </div>
+    </div>
+
+    <div class="stat-card stat-items">
+        <div class="stat-icon">📦</div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.total_items }}</span>
+            <span class="stat-label">ประกาศทั้งหมด</span>
+        </div>
+    </div>
+
+    <div class="stat-card stat-active">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.active_items }}</span>
+            <span class="stat-label">กำลังติดตาม</span>
+        </div>
+    </div>
+
+    <div class="stat-card stat-returned">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.returned_items }}</span>
+            <span class="stat-label">ส่งคืนสำเร็จ</span>
+        </div>
+    </div>
+</div>
+
+<!-- แท็บการจัดการ -->
+<div class="admin-tabs-container">
+    <div class="admin-tabs">
+        <button type="button" class="tab-btn active" onclick="switchAdminTab('usersTab', this)">
+            👥 จัดการสมาชิก ({{ users | length }})
+        </button>
+        <button type="button" class="tab-btn" onclick="switchAdminTab('itemsTab', this)">
+            📦 จัดการประกาศสิ่งของ ({{ items | length }})
+        </button>
+    </div>
+
+    <!-- แท็บ 1: จัดการสมาชิก -->
+    <div id="usersTab" class="tab-content active">
+        <div class="table-card">
+            <div class="table-header">
+                <h3>รายชื่อสมาชิกในระบบ</h3>
+                <input type="text" id="userSearchInput" class="admin-search-input" placeholder="🔍 ค้นหาชื่อ, อีเมล, คณะ..." onkeyup="filterAdminTable('userSearchInput', 'usersTable')">
+            </div>
+
+            <div class="table-responsive">
+                <table class="admin-table" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>อีเมลมหิดล</th>
+                            <th>คณะ / สังกัด</th>
+                            <th>เบอร์โทร</th>
+                            <th>โพสต์</th>
+                            <th>สิทธิ์</th>
+                            <th>วันที่สมัคร</th>
+                            <th style="text-align: center;">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td>#{{ u['id'] }}</td>
+                            <td><strong>{{ u['fullname'] }}</strong></td>
+                            <td><code>{{ u['email'] }}</code></td>
+                            <td>{{ u['faculty'] }}</td>
+                            <td>{{ u['contact_phone'] or '-' }}</td>
+                            <td><span class="badge-count">{{ u['post_count'] }}</span></td>
+                            <td>
+                                {% if u['is_admin'] or u['email'] in ['ponpong.bum@student.mahidol.ac.th'] %}
+                                    <span class="badge-role-admin">👑 Admin</span>
+                                {% else %}
+                                    <span class="badge-role-user">👤 User</span>
+                                {% endif %}
+                            </td>
+                            <td><small style="color: #718096;">{{ u['created_at'][:10] if u['created_at'] else '-' }}</small></td>
+                            <td style="text-align: center;">
+                                {% if u['id'] == session.get('user_id') %}
+                                    <span style="color: #A0AEC0; font-size: 0.85rem;">(บัญชีคุณ)</span>
+                                {% else %}
+                                    <form action="{{ url_for('admin_delete_user', user_id=u['id']) }}" method="POST" onsubmit="return confirm('คำเตือน: คุณต้องการลบผู้ใช้งาน {{ u['fullname'] }} และโพสต์ทั้งหมดของผู้ใช้คนนี้ใช่หรือไม่?');" style="margin: 0; display: inline;">
+                                        <button type="submit" class="btn-table-danger">🗑️ ลบสมาชิก</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: #A0AEC0; padding: 30px;">ไม่มีข้อมูลสมาชิก</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- แท็บ 2: จัดการประกาศ -->
+    <div id="itemsTab" class="tab-content">
+        <div class="table-card">
+            <div class="table-header">
+                <h3>รายการประกาศสิ่งของทั้งหมด</h3>
+                <input type="text" id="itemSearchInput" class="admin-search-input" placeholder="🔍 ค้นหาชื่อสิ่งของ, สถานที่, ผู้แจ้ง..." onkeyup="filterAdminTable('itemSearchInput', 'itemsTable')">
+            </div>
+
+            <div class="table-responsive">
+                <table class="admin-table" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>รูป</th>
+                            <th>ชื่อสิ่งของ</th>
+                            <th>ประเภท</th>
+                            <th>สถานที่</th>
+                            <th>ยอดวิว</th>
+                            <th>ผู้ลงประกาศ</th>
+                            <th>สถานะ</th>
+                            <th style="text-align: center;">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>#{{ item['id'] }}</td>
+                            <td>
+                                {% if item['item_image'] %}
+                                    <img src="{{ item['item_image'] | image_url }}" class="table-thumb-img" alt="{{ item['title'] }}">
+                                {% else %}
+                                    <div class="table-no-img">ไม่มีรูป</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ item['title'] }}</strong><br>
+                                <small style="color: #718096;">หมวดหมู่: {{ item['category'] }}</small>
+                            </td>
+                            <td>
+                                {% if item['item_type'] == 'found' %}
+                                    <span class="badge-tag-found">🟢 เก็บได้</span>
+                                {% else %}
+                                    <span class="badge-tag-lost">🔴 ทำหาย</span>
+                                {% endif %}
+                            </td>
+                            <td><small>📍 {{ item['faculty_location'] }}</small></td>
+                            <td>
+                                <span class="badge-views">👁️ {{ item['views_count'] or 0 }}</span>
+                            </td>
+                            <td>
+                                <small><strong>{{ item['poster_name'] or 'ไม่ทราบชื่อ' }}</strong><br>
+                                {{ item['poster_email'] }}</small>
+                            </td>
+                            <td>
+                                {% if item['status'] == 'returned' %}
+                                    <span class="badge-status-returned">✓ ปิดรายการแล้ว</span>
+                                {% else %}
+                                    <span class="badge-status-active">⏳ กำลังติดตาม</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center; white-space: nowrap;">
+                                <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-table-view" target="_blank">🔍 ดูโพสต์</a>
+                                
+                                <form action="{{ url_for('admin_toggle_status', item_id=item['id']) }}" method="POST" style="display: inline; margin: 0 4px;">
+                                    <button type="submit" class="btn-table-toggle" title="สลับสถานะ">
+                                        {{ "🔄 เปิดใหม่" if item['status'] == 'returned' else "✓ ปิดรายการ" }}
+                                    </button>
+                                </form>
+
+                                <form action="{{ url_for('admin_delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('ยืนยันลบประกาศ \'{{ item['title'] }}\' ถาวร?');" style="display: inline; margin: 0;">
+                                    <button type="submit" class="btn-table-danger">🗑️ ลบ</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: #A0AEC0; padding: 30px;">ยังไม่มีรายการประกาศในระบบ</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchAdminTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+}
+
+function filterAdminTable(inputId, tableId) {
+    const input = document.getElementById(inputId);
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById(tableId);
+    const trs = table.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+
+    for (let i = 0; i < trs.length; i++) {
+        const text = trs[i].textContent.toLowerCase();
+        trs[i].style.display = text.includes(filter) ? "" : "none";
+    }
+}
+</script>
+{% endblock %}

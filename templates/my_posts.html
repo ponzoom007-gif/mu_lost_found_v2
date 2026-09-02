@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero-section" style="text-align: left;">
+    <span class="hero-badge">📁 My Announcements</span>
+    <h1>รายการประกาศสิ่งของของฉัน</h1>
+    <p>จัดการสถานะ แก้ไขข้อมูล หรือลบประกาศที่คุณเคยลงไว้ในระบบ</p>
+</div>
+
+<div class="items-grid">
+    {% for item in items %}
+    <div class="item-card {% if item['status'] == 'returned' %}item-returned{% endif %}">
+        <div class="card-img-wrapper">
+            <div class="card-badge {% if item['item_type'] == 'found' %}badge-found{% else %}badge-lost{% endif %}">
+                {{ "🟢 เก็บได้" if item['item_type'] == 'found' else "🔴 ทำหาย" }}
+            </div>
+            
+            {% if item['item_image'] %}
+                <img src="{{ item['item_image'] | image_url }}" class="card-img" alt="{{ item['title'] }}" loading="lazy">
+            {% else %}
+                <div class="no-img-placeholder">ไม่ได้แนบรูปสิ่งของ</div>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            <h3>{{ item['title'] }}</h3>
+            <p class="location-tag">📍 {{ item['faculty_location'] }}</p>
+            <p class="time-tag">
+                <span>🗓️ {{ item['incident_date'] }} · ⏰ {{ item['incident_time'] }} น.</span>
+                <span class="badge-views-pill">👁️ {{ item['views_count'] or 0 }}</span>
+            </p>
+
+            <div style="margin: 6px 0 12px 0;">
+                {% if item['status'] == 'returned' %}
+                    <div class="status-success">
+                        {{ "✓ ได้รับของคืนแล้ว" if item['item_type'] == 'lost' else "✓ ส่งคืนเรียบร้อยแล้ว" }}
+                    </div>
+                {% else %}
+                    <span class="tag-dropped" style="background: #FEF3C7; color: #92400E; border-color: #FDE68A;">⏳ กำลังติดตาม</span>
+                {% endif %}
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: auto;">
+                <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-detail" style="flex: 1; text-align: center;">ดูข้อมูล</a>
+                <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn-detail" style="background: #F59E0B; color: white; border-color: #D97706; padding: 10px 14px;">✏️ แก้ไข</a>
+                <form action="{{ url_for('delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('ยืนยันลบโพสต์นี้ถาวรหรือไม่?');" style="margin: 0;">
+                    <button type="submit" class="btn-detail" style="background: #EF4444; color: white; border-color: #DC2626; cursor: pointer; padding: 10px 14px;">🗑️ ลบ</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p style="font-size: 1.3rem; margin-bottom: 8px;">คุณยังไม่ได้ลงประกาศรายการของหายหรือเก็บของได้</p>
+        <a href="{{ url_for('report') }}" class="btn-submit" style="display: inline-block; margin-top: 14px; text-decoration: none;">+ เริ่มลงประกาศตอนนี้</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

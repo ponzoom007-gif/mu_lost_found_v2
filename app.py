@@ -3,6 +3,7 @@ import re
 import sqlite3
 import uuid
 import urllib.request
+import urllib.parse
 import urllib.error
 import json
 from functools import wraps
@@ -31,6 +32,10 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "item-images")
+
+# Google OAuth 2.0 Credentials
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
@@ -409,6 +414,110 @@ def logout():
     session.clear()
     flash("ออกจากระบบเรียบร้อยแล้ว", "info")
     return redirect(url_for("index"))
+
+# ----------------- GOOGLE OAUTH 2.0 ----------------- #
+
+@app.route("/login/google")
+def login_google():
+    if "user_id" in session:
+        return redirect(url_for("index"))
+
+    if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
+        flash("⚙️ ระบบ Google OAuth พร้อมใช้งาน! (กรุณาระบุ GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน .env หรือ Railway Variables เพื่อเปิดใช้งานบัญชีจริง)", "info")
+        return redirect(url_for("login"))
+    
+    redirect_uri = url_for("login_google_callback", _external=True)
+    if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={urllib.parse.quote(redirect_uri)}&"
+        "response_type=code&"
+        "scope=openid%20email%20profile&"
+        "prompt=select_account"
+    )
+    return redirect(google_auth_url)
+
+@app.route("/login/google/callback")
+def login_google_callback():
+    code = request.args.get("code")
+    error = request.args.get("error")
+    
+    if error or not code:
+        flash("การเข้าสู่ระบบด้วย Google ถูกยกเลิกหรือไม่สำเร็จ", "warning")
+        return redirect(url_for("login"))
+    
+    try:
+        redirect_uri = url_for("login_google_callback", _external=True)
+        if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+        token_data = urllib.parse.urlencode({
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }).encode("utf-8")
+        
+        token_req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=token_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST"
+        )
+        
+        with urllib.request.urlopen(token_req, timeout=10) as token_resp:
+            token_json = json.loads(token_resp.read().decode("utf-8"))
+            access_token = token_json.get("access_token")
+        
+        # Fetch user info from Google
+        userinfo_req = urllib.request.Request(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        with urllib.request.urlopen(userinfo_req, timeout=10) as userinfo_resp:
+            userinfo = json.loads(userinfo_resp.read().decode("utf-8"))
+        
+        email = userinfo.get("email", "").strip().lower()
+        fullname = userinfo.get("name", "").strip() or email.split("@")[0]
+
+        # Verify Mahidol email domain
+        if not is_valid_mahidol_email(email):
+            flash(f"อีเมล {email} ไม่ใช่อีเมลของมหาวิทยาลัยมหิดล! ระบบอนุญาตเฉพาะบัญชี @student.mahidol.ac.th หรือ @mahidol.edu เท่านั้น", "danger")
+            return redirect(url_for("login"))
+
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+        
+        if not user:
+            # Auto-register Google Mahidol user
+            dummy_hash = generate_password_hash(uuid.uuid4().hex, method="pbkdf2:sha256")
+            is_adm = 1 if email.lower() in ADMIN_EMAILS else 0
+            conn.execute(
+                "INSERT INTO users (email, fullname, faculty, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
+                (email, fullname, "มหาวิทยาลัยมหิดล (Google Sign-In)", dummy_hash, is_adm)
+            )
+            conn.commit()
+            user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+        
+        is_adm = 1 if (user["email"].lower() in ADMIN_EMAILS or ("is_admin" in user.keys() and user["is_admin"] == 1)) else 0
+        session["user_id"] = user["id"]
+        session["email"] = user["email"]
+        session["fullname"] = user["fullname"]
+        session["faculty"] = user["faculty"]
+        session["is_admin"] = is_adm
+        conn.close()
+
+        flash(f"เข้าสู่ระบบด้วย Google สำเร็จ! ยินดีต้อนรับคุณ {user['fullname']}", "success")
+        return redirect(url_for("index"))
+
+    except Exception as e:
+        print(f"Google OAuth Error: {e}")
+        flash("เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบด้วยรหัสผ่าน", "danger")
+        return redirect(url_for("login"))
 
 # ----------------- ITEM ACTIONS ----------------- #
 

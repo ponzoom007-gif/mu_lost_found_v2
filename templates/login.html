@@ -3,7 +3,9 @@
 {% block content %}
 <div class="auth-card auth-card-navy">
     <div class="auth-header">
-        <span class="logo-badge" style="display: inline-block; margin-bottom: 12px; font-size: 1.3rem;">MU</span>
+        <a href="{{ url_for('index') }}" class="auth-logo-link" title="MU Lost & Found - หน้าแรก">
+            <img src="{{ url_for('static', filename='images/navbar-logo.jpg') }}" alt="MU Lost & Found" class="auth-logo-img">
+        </a>
         <h2>เข้าสู่ระบบ</h2>
         <p class="auth-subtitle">ระบบแจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</p>
     </div>

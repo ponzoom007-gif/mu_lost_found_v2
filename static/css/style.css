@@ -1325,6 +1325,28 @@ textarea {
     color: #FFFFFF;
 }
 
+.auth-logo-link {
+    display: inline-block;
+    text-decoration: none;
+    margin-bottom: 8px;
+}
+
+.auth-logo-img {
+    height: 54px;
+    width: auto;
+    max-width: 250px;
+    object-fit: contain;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+    transition: transform 0.22s ease, filter 0.22s ease;
+}
+
+.auth-logo-link:hover .auth-logo-img {
+    transform: scale(1.04);
+    filter: brightness(1.08);
+}
+
 .auth-card.auth-card-navy .auth-header h2 {
     color: #FFFFFF;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -1358,14 +1380,16 @@ textarea {
     color: #CBD5E1 !important;
 }
 
-.auth-card.auth-card-navy input {
+.auth-card.auth-card-navy input,
+.auth-card.auth-card-navy select {
     background: #FFFFFF;
     color: #0F172A;
     border: 1.5px solid #CBD5E1;
     font-weight: 500;
 }
 
-.auth-card.auth-card-navy input:focus {
+.auth-card.auth-card-navy input:focus,
+.auth-card.auth-card-navy select:focus {
     border-color: #FFD700;
     box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.35);
 }

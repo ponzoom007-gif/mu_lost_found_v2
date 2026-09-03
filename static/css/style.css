@@ -115,19 +115,18 @@ img {
 }
 
 .logo-img {
-    height: 48px;
+    height: 56px;
     width: auto;
-    max-width: 220px;
+    max-width: 260px;
     object-fit: contain;
     border-radius: 8px;
     display: block;
-    box-shadow: 0 2px 8px rgba(0, 15, 50, 0.25);
-    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    transition: transform 0.22s ease, filter 0.22s ease;
 }
 
 .logo:hover .logo-img {
-    transform: scale(1.04);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    transform: scale(1.03);
+    filter: brightness(1.06);
 }
 
 .drawer-logo {
@@ -1751,8 +1750,8 @@ footer {
     }
 
     .logo-img {
-        height: 40px;
-        max-width: 175px;
+        height: 46px;
+        max-width: 200px;
     }
 
     /* Hero Section Mobile */

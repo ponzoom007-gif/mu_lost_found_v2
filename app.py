@@ -420,7 +420,39 @@ def check_and_init_db():
             for email in ADMIN_EMAILS:
                 conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
             conn.commit()
-            print("PostgreSQL tables and Admin account ready.")
+
+            # Auto-configure Supabase Storage Bucket and Public Access Policy
+            try:
+                conn.execute("""
+                    INSERT INTO storage.buckets (id, name, public) 
+                    VALUES ('item-images', 'item-images', true)
+                    ON CONFLICT (id) DO UPDATE SET public = true;
+                """)
+                conn.commit()
+            except Exception as se:
+                print(f"Storage bucket init notice: {se}")
+
+            try:
+                conn.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_policies 
+                            WHERE tablename = 'objects' AND policyname = 'Public Access for item-images'
+                        ) THEN
+                            CREATE POLICY "Public Access for item-images" ON storage.objects
+                            FOR ALL
+                            USING (bucket_id = 'item-images')
+                            WITH CHECK (bucket_id = 'item-images');
+                        END IF;
+                    END
+                    $$;
+                """)
+                conn.commit()
+            except Exception as se:
+                print(f"Storage policy init notice: {se}")
+
+            print("PostgreSQL tables, Storage policies, and Admin account ready.")
         else:
             conn.execute(USERS_SQL_SQLITE)
             conn.execute(ITEMS_SQL_SQLITE)

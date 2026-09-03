@@ -307,7 +307,11 @@ CREATE TABLE IF NOT EXISTS items (
 );
 """
 
+LAST_DB_ERROR = None
+CURRENT_DB_TYPE = "SQLite (Local)"
+
 def get_db_connection():
+    global LAST_DB_ERROR, CURRENT_DB_TYPE
     raw_url = os.environ.get("DATABASE_URL") or DATABASE_URL
     clean_db_url = sanitize_database_url(raw_url)
     
@@ -323,10 +327,14 @@ def get_db_connection():
                     conn.commit()
             except Exception:
                 pass
+            CURRENT_DB_TYPE = "PostgreSQL (Cloud)"
+            LAST_DB_ERROR = None
             return DBWrapper(conn, is_postgres=True)
         except Exception as e:
+            LAST_DB_ERROR = str(e)
             print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
     
+    CURRENT_DB_TYPE = "SQLite (Temporary/Local)"
     # SQLite Fallback (Safe for Vercel /tmp)
     target_db_path = "/tmp/database.db" if IS_VERCEL else DATABASE_PATH
     try:
@@ -1289,6 +1297,25 @@ def admin_toggle_status(item_id):
 
     conn.close()
     return redirect(url_for("admin_dashboard"))
+
+@app.route("/db-status")
+def db_status():
+    global LAST_DB_ERROR, CURRENT_DB_TYPE
+    conn = get_db_connection()
+    is_pg = conn.is_postgres
+    user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    item_count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+    conn.close()
+    return {
+        "is_cloud_postgres": is_pg,
+        "database_engine": CURRENT_DB_TYPE,
+        "is_data_persistent": is_pg,
+        "total_users": user_count,
+        "total_items": item_count,
+        "database_url_configured": bool(os.environ.get("DATABASE_URL")),
+        "last_connection_error": LAST_DB_ERROR,
+        "warning": None if is_pg else "⚠️ Website is currently falling back to temporary SQLite. Posts and users will reset on redeploy until cloud PostgreSQL is connected!"
+    }
 
 if __name__ == "__main__":
     check_and_init_db()

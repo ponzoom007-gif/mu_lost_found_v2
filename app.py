@@ -196,6 +196,17 @@ def sanitize_database_url(raw_url):
     # Strip accidental brackets around password e.g. postgres:[password]@...
     url = re.sub(r':\[(.*?)\]@', r':\1@', url)
     
+    # Auto-convert Direct Supabase host (db.<ref>.supabase.co:5432 which is IPv6-only) to IPv4 Pooler
+    direct_match = re.search(r'@db\.([a-z0-9]+)\.supabase\.co(?::\d+)?/(.+)$', url)
+    if direct_match:
+        ref = direct_match.group(1)
+        db_name = direct_match.group(2).split('?')[0]
+        m = re.match(r'^(postgresql://)([^:]+):([^@]+)@', url)
+        if m:
+            prefix, user, pw = m.groups()
+            encoded_pw = urllib.parse.quote_plus(urllib.parse.unquote_plus(pw))
+            url = f"postgresql://postgres.{ref}:{encoded_pw}@aws-0-ap-southeast-1.pooler.supabase.com:6543/{db_name}"
+
     # Extract Supabase project ref if available
     supabase_ref = None
     supa_url_env = os.environ.get("SUPABASE_URL") or SUPABASE_URL

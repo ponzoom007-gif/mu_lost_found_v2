@@ -5,7 +5,8 @@
     <h2>ลงประกาศแจ้งของหาย / พบของ</h2>
     <p style="color: var(--text-muted); margin-bottom: 24px;">ข้อมูลจะถูกเผยแพร่ในระบบสำหรับนักศึกษาและบุคลากรมหาวิทยาลัยมหิดล</p>
 
-    <form action="{{ url_for('report') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ url_for('report') }}" method="POST" enctype="multipart/form-data" id="reportForm">
+        <input type="hidden" name="post_token" value="{{ post_token }}">
         
         <div class="form-group">
             <label>เลือกประเภทการประกาศ *</label>
@@ -132,23 +133,26 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    const reportForm = document.querySelector("form[action*='report']");
+    const reportForm = document.getElementById("reportForm");
     const submitBtn = document.getElementById("btnSubmitReport");
+    let isSubmitting = false;
     
     if (reportForm && submitBtn) {
         reportForm.addEventListener("submit", function(e) {
-            if (reportForm.dataset.submitting === "true") {
+            if (isSubmitting) {
                 e.preventDefault();
                 return false;
             }
-            reportForm.dataset.submitting = "true";
-            submitBtn.disabled = true;
+            isSubmitting = true;
+            submitBtn.style.pointerEvents = "none";
+            submitBtn.style.opacity = "0.7";
             submitBtn.innerHTML = `
                 <span class="spinner-border" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
                 กำลังบันทึกข้อมูล กรุณารอสักครู่...
             `;
-            submitBtn.style.opacity = "0.75";
-            submitBtn.style.cursor = "not-allowed";
+            setTimeout(function() {
+                submitBtn.disabled = true;
+            }, 30);
         });
     }
 });

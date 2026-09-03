@@ -896,6 +896,13 @@ def index():
 @login_required
 def report():
     if request.method == "POST":
+        post_token = request.form.get("post_token", "").strip()
+        if post_token and session.get("last_processed_post_token") == post_token:
+            flash("ลงประกาศเรียบร้อยแล้ว!", "success")
+            return redirect(url_for("index"))
+        if post_token:
+            session["last_processed_post_token"] = post_token
+
         title = request.form.get("title", "").strip()
         category = request.form.get("category", "").strip()
         item_type = request.form.get("item_type", "found").strip()
@@ -907,15 +914,15 @@ def report():
 
         if not title:
             flash("กรุณาระบุชื่อสิ่งของ", "danger")
-            return render_template("report.html", form_data=request.form)
+            return render_template("report.html", form_data=request.form, post_token=post_token)
 
         if not faculty_location:
             flash("กรุณาระบุสถานที่หรือคณะ", "danger")
-            return render_template("report.html", form_data=request.form)
+            return render_template("report.html", form_data=request.form, post_token=post_token)
 
         if not incident_date or not incident_time:
             flash("กรุณาระบุวันที่และเวลาที่เกิดเหตุ", "danger")
-            return render_template("report.html", form_data=request.form)
+            return render_template("report.html", form_data=request.form, post_token=post_token)
 
         if item_type == "lost":
             custody_type = "keep_self"
@@ -924,14 +931,14 @@ def report():
             contact_info = request.form.get("contact_info", "").strip()
             if not contact_info:
                 flash("กรุณาระบุช่องทางการติดต่อสำหรับผู้ที่พบเห็นสิ่งของ", "danger")
-                return render_template("report.html", form_data=request.form)
+                return render_template("report.html", form_data=request.form, post_token=post_token)
         else:
             custody_type = request.form.get("custody_type", "dropped").strip()
             if custody_type == "dropped":
                 drop_location_detail = request.form.get("drop_location_detail", "").strip()
                 if not drop_location_detail:
                     flash("กรุณาระบุจุดที่นำของไปฝากไว้อย่างละเอียด", "danger")
-                    return render_template("report.html", form_data=request.form)
+                    return render_template("report.html", form_data=request.form, post_token=post_token)
                 drop_spot_image = save_image(request.files.get("drop_spot_image"))
                 contact_info = ""
             else:
@@ -940,7 +947,7 @@ def report():
                 contact_info = request.form.get("contact_info", "").strip()
                 if not contact_info:
                     flash("กรุณาระบุช่องทางการติดต่อของคุณสำหรับเจ้าของสิ่งของ", "danger")
-                    return render_template("report.html", form_data=request.form)
+                    return render_template("report.html", form_data=request.form, post_token=post_token)
 
         item_image = save_image(request.files.get("item_image"))
         found_spot_image = save_image(request.files.get("found_spot_image"))
@@ -948,12 +955,12 @@ def report():
         conn = get_db_connection()
 
         # ป้องกันการกดยืนยันประกาศซ้ำ (Double-Submission Prevention)
-        # ตรวจสอบว่าผู้ใช้คนนี้มีโพสต์ข้อมูลเดียวกันที่ถูกสร้างขึ้นในระบบแล้วหรือไม่
+        # ตรวจสอบว่าผู้ใช้คนนี้มีโพสต์ชื่อและประเภทเดียวกันที่เพิ่งสร้างขึ้นมาหรือไม่
         recent_duplicate = conn.execute("""
             SELECT id FROM items 
-            WHERE user_id = ? AND title = ? AND item_type = ? AND faculty_location = ? AND incident_date = ?
+            WHERE user_id = ? AND title = ? AND item_type = ?
             ORDER BY id DESC LIMIT 1
-        """, (session["user_id"], title, item_type, faculty_location, incident_date)).fetchone()
+        """, (session["user_id"], title, item_type)).fetchone()
 
         if recent_duplicate:
             dup_id = recent_duplicate["id"] if hasattr(recent_duplicate, "__getitem__") else recent_duplicate[0]
@@ -980,7 +987,7 @@ def report():
         flash("ลงประกาศเรียบร้อยแล้ว!", "success")
         return redirect(url_for("index"))
 
-    return render_template("report.html", form_data={})
+    return render_template("report.html", form_data={}, post_token=uuid.uuid4().hex)
 
 @app.route("/item/<int:item_id>")
 def detail(item_id):

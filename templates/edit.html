@@ -149,7 +149,31 @@
             </div>
         </div>
 
-        <button type="submit" class="btn-submit btn-block" style="margin-top: 10px;">💾 บันทึกการเปลี่ยนแปลง</button>
+        <button type="submit" id="btnSubmitEdit" class="btn-submit btn-block" style="margin-top: 10px;">บันทึกการเปลี่ยนแปลง</button>
     </form>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const editForm = document.querySelector("form[action*='edit']");
+    const submitBtn = document.getElementById("btnSubmitEdit");
+    
+    if (editForm && submitBtn) {
+        editForm.addEventListener("submit", function(e) {
+            if (editForm.dataset.submitting === "true") {
+                e.preventDefault();
+                return false;
+            }
+            editForm.dataset.submitting = "true";
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <span class="spinner-border" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
+                กำลังบันทึกข้อมูล กรุณารอสักครู่...
+            `;
+            submitBtn.style.opacity = "0.75";
+            submitBtn.style.cursor = "not-allowed";
+        });
+    }
+});
+</script>
 {% endblock %}

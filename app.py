@@ -938,6 +938,21 @@ def report():
         found_spot_image = save_image(request.files.get("found_spot_image"))
 
         conn = get_db_connection()
+
+        # ป้องกันการกดยืนยันประกาศซ้ำ (Double-Submission Prevention)
+        # ตรวจสอบว่าผู้ใช้คนนี้มีโพสต์ข้อมูลเดียวกันที่ถูกสร้างขึ้นในระบบแล้วหรือไม่
+        recent_duplicate = conn.execute("""
+            SELECT id FROM items 
+            WHERE user_id = ? AND title = ? AND item_type = ? AND faculty_location = ? AND incident_date = ?
+            ORDER BY id DESC LIMIT 1
+        """, (session["user_id"], title, item_type, faculty_location, incident_date)).fetchone()
+
+        if recent_duplicate:
+            dup_id = recent_duplicate["id"] if hasattr(recent_duplicate, "__getitem__") else recent_duplicate[0]
+            conn.close()
+            flash("ลงประกาศเรียบร้อยแล้ว!", "success")
+            return redirect(url_for("detail", item_id=dup_id))
+
         conn.execute("""
             INSERT INTO items (
                 user_id, title, category, item_type, faculty_location,

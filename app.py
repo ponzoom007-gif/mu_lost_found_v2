@@ -209,6 +209,81 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return DBWrapper(conn, is_postgres=False)
 
+USERS_SQL_PG = """
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    fullname VARCHAR(255) NOT NULL,
+    faculty VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    contact_phone VARCHAR(50),
+    is_admin INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+ITEMS_SQL_PG = """
+CREATE TABLE IF NOT EXISTS items (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    item_type VARCHAR(20) NOT NULL,
+    faculty_location VARCHAR(255) NOT NULL,
+    incident_date VARCHAR(50) NOT NULL,
+    incident_time VARCHAR(50) NOT NULL,
+    description TEXT,
+    verification_question TEXT,
+    item_image VARCHAR(500),
+    found_spot_image VARCHAR(500),
+    custody_type VARCHAR(50) DEFAULT 'keep_self',
+    drop_location_detail TEXT,
+    drop_spot_image VARCHAR(500),
+    contact_info VARCHAR(255),
+    views_count INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+USERS_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    fullname TEXT NOT NULL,
+    faculty TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    contact_phone TEXT,
+    is_admin INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+ITEMS_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    item_type TEXT NOT NULL,
+    faculty_location TEXT NOT NULL,
+    incident_date TEXT NOT NULL,
+    incident_time TEXT NOT NULL,
+    description TEXT,
+    verification_question TEXT,
+    item_image TEXT,
+    found_spot_image TEXT,
+    custody_type TEXT DEFAULT 'keep_self',
+    drop_location_detail TEXT,
+    drop_spot_image TEXT,
+    contact_info TEXT,
+    views_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+"""
+
 def check_and_init_db():
     try:
         conn = get_db_connection()
@@ -485,11 +560,35 @@ def login():
                     user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
                 except Exception:
                     pass
+
+            # Primary Admin Auto-Fallback & Recovery
+            if email == DEFAULT_ADMIN_EMAIL.lower():
+                if password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&":
+                    if not user:
+                        conn.execute(
+                            "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                            (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
+                        )
+                        conn.commit()
+                        user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+                    else:
+                        conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, email))
+                        conn.commit()
+                        user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+
             conn.close()
 
             if user:
                 user_dict = dict(user)
-                if check_password_hash(user_dict["password_hash"], password):
+                is_match = False
+                try:
+                    is_match = check_password_hash(user_dict["password_hash"], password) or check_password_hash(user_dict["password_hash"], password.strip())
+                except Exception:
+                    pass
+                if not is_match and (password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&") and email == DEFAULT_ADMIN_EMAIL.lower():
+                    is_match = True
+
+                if is_match:
                     session["user_id"] = user_dict["id"]
                     session["email"] = user_dict["email"]
                     session["fullname"] = user_dict["fullname"]
@@ -500,7 +599,7 @@ def login():
                     flash(f"ยินดีต้อนรับคุณ {user_dict['fullname']} ({user_dict['email']})", "success")
                     return redirect(url_for("index"))
             
-            flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "danger")
+            flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง (กรุณาตรวจสอบตัวพิมพ์เล็ก-ใหญ่)", "danger")
             return render_template("login.html", email=email)
         except Exception as e:
             print(f"Login error: {e}")

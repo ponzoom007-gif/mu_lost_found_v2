@@ -53,7 +53,7 @@
             <div class="img-box img-box-hero">
                 <h4>รูปภาพสิ่งของ</h4>
                 {% if item['item_image'] %}
-                    <img src="{{ item['item_image'] | image_url }}" alt="{{ item['title'] }}" loading="eager">
+                    <img src="{{ item['item_image'] | image_url }}" alt="{{ item['title'] }}" loading="eager" class="zoomable-image" onclick="openLightbox(this.src, '{{ item['title'] }}')" title="คลิกเพื่อดูรูปขยายเต็มจอ">
                 {% else %}
                     <div class="no-img-placeholder" style="height: 260px;">ไม่ได้แนบรูปสิ่งของ</div>
                 {% endif %}
@@ -62,14 +62,14 @@
             {% if item['found_spot_image'] %}
             <div class="img-box">
                 <h4>รูปถ่ายบริเวณจุดที่เกิดเหตุ</h4>
-                <img src="{{ item['found_spot_image'] | image_url }}" alt="จุดที่เกิดเหตุ" loading="lazy">
+                <img src="{{ item['found_spot_image'] | image_url }}" alt="จุดที่เกิดเหตุ" loading="lazy" class="zoomable-image" onclick="openLightbox(this.src, 'รูปถ่ายบริเวณจุดที่เกิดเหตุ - {{ item['faculty_location'] }}')" title="คลิกเพื่อดูรูปขยายเต็มจอ">
             </div>
             {% endif %}
 
             {% if item['custody_type'] == 'dropped' and item['drop_spot_image'] %}
             <div class="img-box">
                 <h4>รูปถ่ายจุดที่นำไปส่งมอบ / ฝากไว้</h4>
-                <img src="{{ item['drop_spot_image'] | image_url }}" alt="จุดรับฝาก" loading="lazy">
+                <img src="{{ item['drop_spot_image'] | image_url }}" alt="จุดรับฝาก" loading="lazy" class="zoomable-image" onclick="openLightbox(this.src, 'รูปถ่ายจุดที่นำไปส่งมอบ / ฝากไว้ - {{ item['drop_location_detail'] }}')" title="คลิกเพื่อดูรูปขยายเต็มจอ">
             </div>
             {% endif %}
         </div>
@@ -244,4 +244,40 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Fullscreen Image Lightbox Modal -->
+<div id="imageLightboxModal" class="lightbox-modal" onclick="closeLightbox(event)" role="dialog" aria-modal="true" aria-label="ขยายรูปภาพเต็มจอ">
+    <button type="button" class="lightbox-close-btn" onclick="closeLightbox(event)" aria-label="ปิดภาพเต็มจอ">&times;</button>
+    <div class="lightbox-dialog" onclick="event.stopPropagation()">
+        <img id="lightboxImage" src="" alt="รูปภาพขยายเต็มจอ" class="lightbox-img">
+        <div id="lightboxCaption" class="lightbox-caption"></div>
+    </div>
+</div>
+
+<script>
+function openLightbox(src, caption) {
+    const modal = document.getElementById("imageLightboxModal");
+    const img = document.getElementById("lightboxImage");
+    const cap = document.getElementById("lightboxCaption");
+    if (!modal || !img) return;
+    img.src = src;
+    if (cap) cap.textContent = caption || "";
+    modal.classList.add("active");
+    document.body.style.overflow = "hidden";
+}
+
+function closeLightbox(e) {
+    if (e) e.stopPropagation();
+    const modal = document.getElementById("imageLightboxModal");
+    if (!modal) return;
+    modal.classList.remove("active");
+    document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") {
+        closeLightbox();
+    }
+});
+</script>
 {% endblock %}

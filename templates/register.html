@@ -39,8 +39,9 @@
             <div class="form-group">
                 <label for="faculty">คณะ / สังกัด *</label>
                 <select id="faculty" name="faculty" required>
-                    {% for loc in locations %}
-                        <option value="{{ loc }}" {% if form_data and form_data.get('faculty') == loc %}selected{% endif %}>{{ loc }}</option>
+                    <option value="" disabled {% if not form_data or not form_data.get('faculty') %}selected{% endif %}>-- กรุณาเลือกคณะ / วิทยาลัย / สังกัด --</option>
+                    {% for fac in faculties %}
+                        <option value="{{ fac }}" {% if form_data and form_data.get('faculty') == fac %}selected{% endif %}>{{ fac }}</option>
                     {% endfor %}
                 </select>
             </div>

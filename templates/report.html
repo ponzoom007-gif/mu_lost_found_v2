@@ -138,21 +138,34 @@ document.addEventListener("DOMContentLoaded", function() {
     let isSubmitting = false;
     
     if (reportForm && submitBtn) {
+        function resetSubmitState() {
+            isSubmitting = false;
+            submitBtn.style.pointerEvents = "auto";
+            submitBtn.style.opacity = "1";
+            submitBtn.innerHTML = "ยืนยันการลงประกาศ";
+        }
+
         reportForm.addEventListener("submit", function(e) {
+            // 1. ตรวจสอบความถูกต้องของฟอร์มก่อนเสมอ หากข้อมูลไม่ครบ ห้ามล็อกปุ่ม
+            if (!reportForm.checkValidity()) {
+                return;
+            }
+
+            // 2. ป้องกันการกดย้ำซ้ำๆ
             if (isSubmitting) {
                 e.preventDefault();
                 return false;
             }
             isSubmitting = true;
             submitBtn.style.pointerEvents = "none";
-            submitBtn.style.opacity = "0.7";
+            submitBtn.style.opacity = "0.75";
             submitBtn.innerHTML = `
                 <span class="spinner-border" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
                 กำลังบันทึกข้อมูล กรุณารอสักครู่...
             `;
-            setTimeout(function() {
-                submitBtn.disabled = true;
-            }, 30);
+
+            // 3. ระบบเซฟตี้ ปลดล็อกปุ่มอัตโนมัติหากการเชื่อมต่อล่าช้าเกิน 15 วินาที
+            setTimeout(resetSubmitState, 15000);
         });
     }
 });

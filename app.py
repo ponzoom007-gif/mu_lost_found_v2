@@ -70,14 +70,19 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 handler = app  # WSGI Handler export for Vercel
 app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
 
-# 1. จำกัดขนาดไฟล์อัปโหลดไม่เกิน 5 MB ป้องกัน Denial of Service (DoS)
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 Megabytes
+# 1. จำกัดขนาดไฟล์อัปโหลดไม่เกิน 16 MB รองรับภาพถ่ายความละเอียดสูงจากสมาร์ตโฟนหลายภาพ
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 Megabytes
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "heic", "heif", "jfif"}
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/pjpeg", "image/webp",
     "image/jpg", "image/x-png", "image/jfif", "image/heic", "image/heif",
     "image/heic-sequence", "image/heif-sequence", "application/octet-stream"
 }
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash("ขนาดไฟล์รูปภาพรวมเกินขีดจำกัด (สูงสุดไม่เกิน 16 MB) กรุณาลดขนาดไฟล์หรือเลือกภาพอื่น", "danger")
+    return redirect(request.referrer or url_for("index"))
 
 # Safe upload directory creation on read-only serverless environments
 try:
@@ -93,6 +98,42 @@ except Exception:
 # Regex ตรวจสอบโดเมนอีเมลมหิดลเท่านั้น
 MAHIDOL_EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@([a-zA-Z0-9-]+\.)*mahidol\.(ac\.th|edu)$"
 
+# 1. รายชื่อคณะ / วิทยาลัย / สถาบัน ของมหาวิทยาลัยมหิดล ครบทุกแห่ง (สำหรับหน้าสมัครสมาชิก)
+MAHIDOL_FACULTIES = [
+    "คณะแพทยศาสตร์ศิริราชพยาบาล",
+    "คณะแพทยศาสตร์โรงพยาบาลรามาธิบดี",
+    "คณะทันตแพทยศาสตร์",
+    "คณะเภสัชศาสตร์",
+    "คณะเทคนิคการแพทย์",
+    "คณะพยาบาลศาสตร์",
+    "คณะสาธารณสุขศาสตร์",
+    "คณะกายภาพบำบัด",
+    "คณะวิทยาศาสตร์",
+    "คณะวิศวกรรมศาสตร์",
+    "คณะเทคโนโลยีสารสนเทศและการสื่อสาร (ICT)",
+    "คณะสัตวแพทยศาสตร์",
+    "คณะสิ่งแวดล้อมและทรัพยากรศาสตร์",
+    "คณะสังคมศาสตร์และมนุษยศาสตร์",
+    "คณะศิลปศาสตร์",
+    "วิทยาลัยนานาชาติ (MUIC)",
+    "วิทยาลัยดุริยางคศิลป์ (MS)",
+    "วิทยาลัยศาสนศึกษา (CRS)",
+    "วิทยาลัยวิทยาศาสตร์และเทคโนโลยีการกีฬา (SS)",
+    "วิทยาลัยการจัดการ (CMMU)",
+    "สถาบันนวัตกรรมการเรียนรู้",
+    "สถาบันโภชนาการ",
+    "สถาบันวิจัยประชากรและสังคม",
+    "สถาบันพัฒนาสุขภาพอาเซียน",
+    "สถาบันชีววิทยาศาสตร์โมเลกุล",
+    "สถาบันวิจัยภาษาและวัฒนธรรมเอเชีย",
+    "วิทยาเขตกาญจนบุรี",
+    "วิทยาเขตนครสวรรค์",
+    "วิทยาเขตอำนาจเจริญ",
+    "บัณฑิตวิทยาลัย",
+    "บุคลากร / หน่วยงานส่วนกลาง / อื่นๆ"
+]
+
+# 2. รายชื่อสถานที่ / จุดเกิดเหตุ ภายในมหาวิทยาลัยมหิดล (สำหรับหน้าลงประกาศและค้นหา)
 MAHIDOL_LOCATIONS = [
     "คณะวิศวกรรมศาสตร์", "คณะ ICT", "คณะวิทยาศาสตร์", 
     "คณะกายภาพบำบัด", "คณะพยาบาลศาสตร์", "คณะสาธารณสุขศาสตร์",
@@ -146,6 +187,7 @@ def serve_uploads(filename):
 @app.context_processor
 def inject_global_data():
     return {
+        "faculties": MAHIDOL_FACULTIES,
         "locations": MAHIDOL_LOCATIONS,
         "categories": CATEGORIES,
         "is_admin": is_admin(),
@@ -966,8 +1008,6 @@ def report():
         if post_token and session.get("last_processed_post_token") == post_token:
             flash("ลงประกาศเรียบร้อยแล้ว!", "success")
             return redirect(url_for("index"))
-        if post_token:
-            session["last_processed_post_token"] = post_token
 
         title = request.form.get("title", "").strip()
         category = request.form.get("category", "").strip()
@@ -1020,19 +1060,19 @@ def report():
 
         conn = get_db_connection()
 
-        # ป้องกันการกดยืนยันประกาศซ้ำ (Double-Submission Prevention)
-        # ตรวจสอบว่าผู้ใช้คนนี้มีโพสต์ชื่อและประเภทเดียวกันที่เพิ่งสร้างขึ้นมาหรือไม่
+        # ป้องกันการกดยืนยันประกาศซ้ำจากการกดเบิ้ลทันที (Rapid double-click prevention)
         recent_duplicate = conn.execute("""
             SELECT id FROM items 
             WHERE user_id = ? AND title = ? AND item_type = ?
             ORDER BY id DESC LIMIT 1
         """, (session["user_id"], title, item_type)).fetchone()
 
-        if recent_duplicate:
+        if recent_duplicate and session.get("last_created_item_id"):
             dup_id = recent_duplicate["id"] if hasattr(recent_duplicate, "__getitem__") else recent_duplicate[0]
-            conn.close()
-            flash("ลงประกาศเรียบร้อยแล้ว!", "success")
-            return redirect(url_for("detail", item_id=dup_id))
+            if session.get("last_created_item_id") == dup_id:
+                conn.close()
+                flash("ลงประกาศเรียบร้อยแล้ว!", "success")
+                return redirect(url_for("detail", item_id=dup_id))
 
         conn.execute("""
             INSERT INTO items (
@@ -1048,6 +1088,15 @@ def report():
             drop_location_detail, drop_spot_image, contact_info
         ))
         conn.commit()
+
+        # ดึง ID รายการที่เพิ่งบันทึก และบันทึก Token ว่าสำเร็จแล้ว
+        new_row = conn.execute("SELECT id FROM items WHERE user_id = ? ORDER BY id DESC LIMIT 1", (session["user_id"],)).fetchone()
+        if new_row:
+            new_id = new_row["id"] if hasattr(new_row, "__getitem__") else new_row[0]
+            session["last_created_item_id"] = new_id
+        if post_token:
+            session["last_processed_post_token"] = post_token
+
         conn.close()
 
         flash("ลงประกาศเรียบร้อยแล้ว!", "success")

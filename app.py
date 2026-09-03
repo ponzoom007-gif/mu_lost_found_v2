@@ -474,24 +474,37 @@ def login():
 
         try:
             conn = get_db_connection()
-            user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+            user = None
+            try:
+                user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+            except Exception as e:
+                print(f"Initial user query failed ({e}), re-initializing tables...")
+                try:
+                    check_and_init_db()
+                    conn = get_db_connection()
+                    user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+                except Exception:
+                    pass
             conn.close()
 
-            if user and check_password_hash(user["password_hash"], password):
-                session["user_id"] = user["id"]
-                session["email"] = user["email"]
-                session["fullname"] = user["fullname"]
-                session["faculty"] = user["faculty"]
-                is_adm = 1 if (user["email"].lower() in ADMIN_EMAILS or ("is_admin" in user.keys() and user["is_admin"] == 1)) else 0
-                session["is_admin"] = is_adm
-                flash(f"ยินดีต้อนรับคุณ {user['fullname']} ({user['email']})", "success")
-                return redirect(url_for("index"))
-            else:
-                flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "danger")
-                return render_template("login.html", email=email)
+            if user:
+                user_dict = dict(user)
+                if check_password_hash(user_dict["password_hash"], password):
+                    session["user_id"] = user_dict["id"]
+                    session["email"] = user_dict["email"]
+                    session["fullname"] = user_dict["fullname"]
+                    session["faculty"] = user_dict["faculty"]
+                    user_email = str(user_dict.get("email") or "").lower().strip()
+                    is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
+                    session["is_admin"] = is_adm
+                    flash(f"ยินดีต้อนรับคุณ {user_dict['fullname']} ({user_dict['email']})", "success")
+                    return redirect(url_for("index"))
+            
+            flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "danger")
+            return render_template("login.html", email=email)
         except Exception as e:
             print(f"Login error: {e}")
-            flash("เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง", "danger")
+            flash(f"เกิดข้อผิดพลาดในการเข้าสู่ระบบ ({e}) กรุณาลองใหม่อีกครั้ง", "danger")
             return render_template("login.html", email=email)
 
     return render_template("login.html", email="")
@@ -600,26 +613,30 @@ def login_google_callback():
             dummy_hash = generate_password_hash(uuid.uuid4().hex, method="pbkdf2:sha256")
             is_adm = 1 if email.lower() in ADMIN_EMAILS else 0
             conn.execute(
-                "INSERT INTO users (email, fullname, faculty, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
-                (email, fullname, "มหาวิทยาลัยมหิดล (Google Sign-In)", dummy_hash, is_adm)
+                "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                (email, fullname, "มหาวิทยาลัยมหิดล (Google Sign-In)", dummy_hash, "", is_adm)
             )
             conn.commit()
             user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
         
-        is_adm = 1 if (user["email"].lower() in ADMIN_EMAILS or ("is_admin" in user.keys() and user["is_admin"] == 1)) else 0
-        session["user_id"] = user["id"]
-        session["email"] = user["email"]
-        session["fullname"] = user["fullname"]
-        session["faculty"] = user["faculty"]
-        session["is_admin"] = is_adm
+        user_dict = dict(user)
         conn.close()
 
-        flash(f"เข้าสู่ระบบด้วย Google สำเร็จ! ยินดีต้อนรับคุณ {user['fullname']}", "success")
+        user_email = str(user_dict.get("email") or "").lower().strip()
+        is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
+
+        session["user_id"] = user_dict["id"]
+        session["email"] = user_dict["email"]
+        session["fullname"] = user_dict["fullname"]
+        session["faculty"] = user_dict["faculty"]
+        session["is_admin"] = is_adm
+
+        flash(f"เข้าสู่ระบบด้วย Google สำเร็จ! ยินดีต้อนรับคุณ {user_dict['fullname']}", "success")
         return redirect(url_for("index"))
 
     except Exception as e:
         print(f"Google OAuth Error: {e}")
-        flash("เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google กรุณาลองใหม่อีกครั้ง หรือเข้าสู่ระบบด้วยรหัสผ่าน", "danger")
+        flash(f"เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google ({e})", "danger")
         return redirect(url_for("login"))
 
 # ----------------- ITEM ACTIONS ----------------- #

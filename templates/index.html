@@ -83,13 +83,15 @@
 <!-- Items Grid -->
 <div class="items-grid" id="itemsContainer">
     {% for item in items %}
-    <div class="item-card {% if item['status'] == 'returned' %}item-returned{% endif %}"
-         data-title="{{ item['title'] | lower }}"
-         data-desc="{{ (item['description'] or '') | lower }}"
-         data-location="{{ item['faculty_location'] }}"
-         data-category="{{ item['category'] }}"
-         data-type="{{ item['item_type'] }}"
-         data-date="{{ item['incident_date'] }}">
+    <a href="{{ url_for('detail', item_id=item['id']) }}"
+       class="item-card {% if item['status'] == 'returned' %}item-returned{% endif %}"
+       data-title="{{ item['title'] | lower }}"
+       data-desc="{{ (item['description'] or '') | lower }}"
+       data-location="{{ item['faculty_location'] }}"
+       data-category="{{ item['category'] }}"
+       data-type="{{ item['item_type'] }}"
+       data-date="{{ item['incident_date'] }}"
+       title="คลิกเพื่อดูรายละเอียดและช่องทางติดต่อ">
         
         <div class="card-img-wrapper">
             <div class="card-badge {% if item['item_type'] == 'found' %}badge-found{% else %}badge-lost{% endif %}">
@@ -132,9 +134,9 @@
                 </div>
             {% endif %}
 
-            <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-detail">ดูรายละเอียด & ติดต่อ →</a>
+            <span class="btn-detail">ดูรายละเอียด & ติดต่อ →</span>
         </div>
-    </div>
+    </a>
     {% else %}
     <div class="empty-state">
         <p style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">ยังไม่มีรายการประกาศในระบบ</p>

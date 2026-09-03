@@ -610,13 +610,27 @@ img {
     position: relative;
     display: flex;
     flex-direction: column;
-    transition: var(--transition);
+    text-decoration: none !important;
+    color: inherit !important;
+    cursor: pointer;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
 .item-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-hover);
-    border-color: #CBD5E1;
+    transform: translateY(-5px);
+    box-shadow: 0 14px 28px -4px rgba(0, 43, 127, 0.16);
+    border-color: #93C5FD;
+}
+
+.item-card:hover .btn-detail {
+    background: var(--mu-blue);
+    color: #FFFFFF;
+    border-color: var(--mu-blue);
+    box-shadow: 0 4px 12px rgba(0, 43, 127, 0.25);
+}
+
+.item-card:active {
+    transform: translateY(-2px);
 }
 
 /* Card Image & Overlay */

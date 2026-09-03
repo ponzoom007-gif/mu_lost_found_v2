@@ -11,6 +11,11 @@
    - มีช่อง "จุดสังเกตเฉพาะ / คำถามยืนยันความเป็นเจ้าของ" (Secret Proof / Claim Question) เพื่อให้เจ้าของตัวจริงตอบก่อนรับของ
 4. **ระบบลบโพสต์ (Delete Item):** เจ้าของโพสต์สามารถลบข้อมูล พร้อมระบบลบไฟล์รูปภาพออกจากเซิร์ฟเวอร์อัตโนมัติ (`os.remove`)
 
+## ฐานข้อมูลและการจัดเก็บข้อมูล (Cloud Database & Storage):
+- **Cloud Database:** เชื่อมต่อ Supabase PostgreSQL ถาวร 100% ข้อมูลสมาชิกและโพสต์ไม่มีวันสูญหาย
+- **Cloud File Storage:** Supabase Storage Bucket `item-images`
+- **สถานะระบบสด (Live Health Check):** `/db-status`
+
 ---
 
 ## ขั้นตอนการรันระบบ:

@@ -196,10 +196,21 @@ def sanitize_database_url(raw_url):
     # Strip accidental brackets around password e.g. postgres:[password]@...
     url = re.sub(r':\[(.*?)\]@', r':\1@', url)
     
-    # Safely URL-encode special characters in the password segment (e.g. #, %, &, ?)
+    # Extract Supabase project ref if available
+    supabase_ref = None
+    supa_url_env = os.environ.get("SUPABASE_URL") or SUPABASE_URL
+    if supa_url_env:
+        ref_match = re.search(r'https?://([^.]+)\.supabase\.co', supa_url_env)
+        if ref_match:
+            supabase_ref = ref_match.group(1)
+            
     m = re.match(r'^(postgresql://)([^:]+):([^@]+)@(.+)$', url)
     if m:
         prefix, user, pw, host_part = m.groups()
+        # Auto-complete username to postgres.<ref> if connecting to Supabase pooler with plain postgres
+        if user == "postgres" and "pooler.supabase.com" in host_part and supabase_ref:
+            user = f"postgres.{supabase_ref}"
+            
         encoded_pw = urllib.parse.quote_plus(urllib.parse.unquote_plus(pw))
         url = f"{prefix}{user}:{encoded_pw}@{host_part}"
 

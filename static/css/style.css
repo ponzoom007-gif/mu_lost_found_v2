@@ -110,12 +110,28 @@ img {
 .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
     text-decoration: none;
-    color: white;
-    font-weight: 700;
-    font-size: 1.35rem;
-    letter-spacing: -0.3px;
+    line-height: 1;
+}
+
+.logo-img {
+    height: 42px;
+    width: auto;
+    max-width: 190px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    display: block;
+    transition: transform 0.2s ease;
+}
+
+.logo:hover .logo-img {
+    transform: scale(1.03);
+}
+
+.drawer-logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
 }
 
 .logo-badge {
@@ -1732,13 +1748,9 @@ footer {
         display: flex;
     }
 
-    .logo {
-        font-size: 1.15rem;
-    }
-
-    .logo-badge {
-        font-size: 0.95rem;
-        padding: 2px 8px;
+    .logo-img {
+        height: 36px;
+        max-width: 155px;
     }
 
     /* Hero Section Mobile */

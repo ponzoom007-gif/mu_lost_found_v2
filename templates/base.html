@@ -38,9 +38,8 @@
     <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">
-                <span class="logo-badge">MU</span>
-                <span class="logo-text">Lost & Found</span>
+            <a href="{{ url_for('index') }}" class="logo" title="MU Lost & Found - หน้าแรก">
+                <img src="{{ url_for('static', filename='images/og-logo.jpg') }}" alt="MU Lost & Found" class="logo-img">
             </a>
 
             <!-- Desktop Navigation Actions -->
@@ -106,10 +105,9 @@
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <div class="mobile-drawer" id="mobileDrawer">
         <div class="drawer-header">
-            <div class="drawer-logo">
-                <span class="logo-badge">MU</span>
-                <span class="logo-text">Lost & Found</span>
-            </div>
+            <a href="{{ url_for('index') }}" class="drawer-logo" title="MU Lost & Found - หน้าแรก">
+                <img src="{{ url_for('static', filename='images/og-logo.jpg') }}" alt="MU Lost & Found" class="logo-img" style="height: 36px; border-radius: 6px;">
+            </a>
             <button type="button" class="drawer-close-btn" id="mobileDrawerCloseBtn" aria-label="ปิดเมนู">&times;</button>
         </div>
 

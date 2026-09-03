@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.error
 import json
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Try loading .env automatically if available
@@ -128,7 +128,18 @@ def image_url_filter(filename):
         return ""
     if filename.startswith("http://") or filename.startswith("https://"):
         return filename
-    return url_for("static", filename=f"uploads/{filename}")
+    return url_for("serve_uploads", filename=filename)
+
+@app.route("/static/uploads/<path:filename>")
+def serve_uploads(filename):
+    safe_name = os.path.basename(filename)
+    tmp_path = os.path.join("/tmp/uploads", safe_name)
+    if os.path.exists(tmp_path):
+        return send_from_directory("/tmp/uploads", safe_name)
+    local_path = os.path.join(BASE_DIR, "static", "uploads", safe_name)
+    if os.path.exists(local_path):
+        return send_from_directory(os.path.join(BASE_DIR, "static", "uploads"), safe_name)
+    return "", 404
 
 @app.context_processor
 def inject_global_data():

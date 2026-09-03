@@ -161,3 +161,26 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 });
+
+// ฟังก์ชันสลับแสดง/ซ่อนรหัสผ่าน เพื่อป้องกันการพิมพ์ผิดก่อนกดส่ง
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    if (input.type === "password") {
+        input.type = "text";
+        if (btn) {
+            btn.innerText = "🙈";
+            btn.title = "ซ่อนรหัสผ่าน";
+            btn.setAttribute("aria-label", "ซ่อนรหัสผ่าน");
+        }
+    } else {
+        input.type = "password";
+        if (btn) {
+            btn.innerText = "👁️";
+            btn.title = "แสดงรหัสผ่าน";
+            btn.setAttribute("aria-label", "แสดงรหัสผ่าน");
+        }
+    }
+}
+

@@ -54,12 +54,22 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="password">รหัสผ่าน (ขั้นต่ำ 6 ตัวอักษร) *</label>
-                <input type="password" id="password" name="password" required minlength="6" placeholder="กำหนดรหัสผ่าน">
+                <div class="password-input-wrapper">
+                    <input type="password" id="password" name="password" required minlength="6" placeholder="กำหนดรหัสผ่าน">
+                    <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('password', this)" title="แสดงรหัสผ่าน" aria-label="แสดงรหัสผ่าน">
+                        👁️
+                    </button>
+                </div>
             </div>
 
             <div class="form-group">
                 <label for="confirm_password">ยืนยันรหัสผ่าน *</label>
-                <input type="password" id="confirm_password" name="confirm_password" required minlength="6" placeholder="ยืนยันรหัสผ่านอีกครั้ง">
+                <div class="password-input-wrapper">
+                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6" placeholder="ยืนยันรหัสผ่านอีกครั้ง">
+                    <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('confirm_password', this)" title="แสดงรหัสผ่าน" aria-label="แสดงรหัสผ่าน">
+                        👁️
+                    </button>
+                </div>
             </div>
         </div>
 

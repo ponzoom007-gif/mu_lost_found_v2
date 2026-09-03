@@ -428,9 +428,11 @@ def file_too_large(e):
     flash("ขนาดไฟล์รูปภาพเกินขีดจำกัด (สูงสุด 5 MB ต่อไฟล์) กรุณาลดขนาดรูปภาพก่อนอัปโหลด", "danger")
     return redirect(request.referrer or url_for("index"))
 
-@app.errorhandler(404)
-def page_not_found(e):
-    flash("ไม่พบหน้าที่คุณต้องการ", "warning")
+# จัดการ Error 500 ให้แสดงผลสวยงามและแจ้งเตือนผู้ใช้แทนหน้าขาว
+@app.errorhandler(500)
+def internal_server_error(e):
+    print(f"Internal Server Error 500: {e}")
+    flash("เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง", "danger")
     return redirect(url_for("index"))
 
 # ----------------- AUTHENTICATION ----------------- #
@@ -471,20 +473,28 @@ def register():
 
         hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
 
-        conn = get_db_connection()
         try:
+            conn = get_db_connection()
+            # ตรวจสอบว่ามีอีเมลนี้อยู่แล้วหรือไม่
+            existing = conn.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+            if existing:
+                conn.close()
+                flash("อีเมลมหิดลนี้ถูกลงทะเบียนไว้ในระบบแล้ว สามารถเข้าสู่ระบบได้ทันที", "warning")
+                return redirect(url_for("login"))
+
+            is_adm = 1 if email in ADMIN_EMAILS else 0
             conn.execute(
-                "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone) VALUES (?, ?, ?, ?, ?)",
-                (email, fullname, faculty, hashed_password, contact_phone)
+                "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                (email, fullname, faculty, hashed_password, contact_phone, is_adm)
             )
             conn.commit()
+            conn.close()
             flash("สมัครสมาชิกสำเร็จ! เข้าสู่ระบบด้วยอีเมลมหิดลของคุณได้ทันที", "success")
             return redirect(url_for("login"))
-        except sqlite3.IntegrityError:
-            flash("อีเมลมหิดลนี้ถูกลงทะเบียนไว้ในระบบแล้ว", "danger")
+        except Exception as e:
+            print(f"Registration error: {e}")
+            flash("เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง", "danger")
             return render_template("register.html", form_data=request.form)
-        finally:
-            conn.close()
 
     return render_template("register.html", form_data={})
 
@@ -501,21 +511,26 @@ def login():
             flash("กรุณากรอกอีเมลของมหาวิทยาลัยมหิดลให้ถูกต้อง (เช่น @student.mahidol.ac.th, @mahidol.edu)", "danger")
             return render_template("login.html", email=email)
 
-        conn = get_db_connection()
-        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        conn.close()
+        try:
+            conn = get_db_connection()
+            user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+            conn.close()
 
-        if user and check_password_hash(user["password_hash"], password):
-            session["user_id"] = user["id"]
-            session["email"] = user["email"]
-            session["fullname"] = user["fullname"]
-            session["faculty"] = user["faculty"]
-            is_adm = 1 if (user["email"].lower() in ADMIN_EMAILS or ("is_admin" in user.keys() and user["is_admin"] == 1)) else 0
-            session["is_admin"] = is_adm
-            flash(f"ยินดีต้อนรับคุณ {user['fullname']} ({user['email']})", "success")
-            return redirect(url_for("index"))
-        else:
-            flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "danger")
+            if user and check_password_hash(user["password_hash"], password):
+                session["user_id"] = user["id"]
+                session["email"] = user["email"]
+                session["fullname"] = user["fullname"]
+                session["faculty"] = user["faculty"]
+                is_adm = 1 if (user["email"].lower() in ADMIN_EMAILS or ("is_admin" in user.keys() and user["is_admin"] == 1)) else 0
+                session["is_admin"] = is_adm
+                flash(f"ยินดีต้อนรับคุณ {user['fullname']} ({user['email']})", "success")
+                return redirect(url_for("index"))
+            else:
+                flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "danger")
+                return render_template("login.html", email=email)
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash("เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง", "danger")
             return render_template("login.html", email=email)
 
     return render_template("login.html", email="")

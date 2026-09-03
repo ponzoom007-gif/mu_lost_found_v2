@@ -160,6 +160,37 @@ document.addEventListener("DOMContentLoaded", function () {
             applyLiveFilter();
         });
     }
+
+    // ระบบเมนูนำทางบนมือถือและแท็บเล็ต (Mobile & Tablet Navigation)
+    const navToggleBtn = document.getElementById("navToggleBtn");
+    const navLinks = document.getElementById("navLinks");
+
+    if (navToggleBtn && navLinks) {
+        navToggleBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            const isOpen = navLinks.classList.toggle("mobile-active");
+            navToggleBtn.classList.toggle("active", isOpen);
+            navToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        });
+
+        // ปิดเมนูอัตโนมัติเมื่อคลิกนอกเมนู
+        document.addEventListener("click", function (e) {
+            if (!navLinks.contains(e.target) && !navToggleBtn.contains(e.target)) {
+                navLinks.classList.remove("mobile-active");
+                navToggleBtn.classList.remove("active");
+                navToggleBtn.setAttribute("aria-expanded", "false");
+            }
+        });
+
+        // ปิดเมนูเมื่อเลือกลิงก์
+        navLinks.querySelectorAll("a").forEach(link => {
+            link.addEventListener("click", function () {
+                navLinks.classList.remove("mobile-active");
+                navToggleBtn.classList.remove("active");
+                navToggleBtn.setAttribute("aria-expanded", "false");
+            });
+        });
+    }
 });
 
 // ฟังก์ชันสลับแสดง/ซ่อนรหัสผ่าน เพื่อป้องกันการพิมพ์ผิดก่อนกดส่ง

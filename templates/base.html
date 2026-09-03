@@ -17,7 +17,14 @@
                 <span class="logo-badge">MU</span>
                 <span class="logo-text">Lost & Found</span>
             </a>
-            <nav class="nav-links">
+
+            <button type="button" class="nav-toggle-btn" id="navToggleBtn" aria-label="เมนูนำทาง" aria-expanded="false">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+
+            <nav class="nav-links" id="navLinks">
                 <a href="{{ url_for('index') }}">หน้าแรก</a>
                 
                 {% if session.get('user_id') %}

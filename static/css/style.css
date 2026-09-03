@@ -132,6 +132,48 @@ img {
     font-weight: 600;
 }
 
+/* Mobile Nav Toggle Button (Hamburger) */
+.nav-toggle-btn {
+    display: none;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    padding: 8px 9px;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 42px;
+    height: 38px;
+    transition: var(--transition);
+}
+
+.nav-toggle-btn .bar {
+    display: block;
+    width: 22px;
+    height: 2.5px;
+    background-color: white;
+    border-radius: 2px;
+    transition: all 0.25s ease;
+}
+
+.nav-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-toggle-btn.active .bar:nth-child(1) {
+    transform: translateY(7.5px) rotate(45deg);
+    background-color: var(--mu-gold);
+}
+
+.nav-toggle-btn.active .bar:nth-child(2) {
+    opacity: 0;
+}
+
+.nav-toggle-btn.active .bar:nth-child(3) {
+    transform: translateY(-7.5px) rotate(-45deg);
+    background-color: var(--mu-gold);
+}
+
 .nav-links {
     display: flex;
     align-items: center;
@@ -1353,36 +1395,347 @@ footer {
     margin-top: auto;
 }
 
-/* ================= RESPONSIVE ================= */
-@media (max-width: 900px) {
+/* ================= RESPONSIVE DESIGN (DESKTOP, IPAD, MOBILE) ================= */
+
+/* 1. TABLET & IPAD DEVICES (<= 1024px) */
+@media (max-width: 1024px) {
+    .container {
+        padding: 0 16px;
+        margin: 20px auto;
+    }
+
+    .nav-toggle-btn {
+        display: flex;
+    }
+
+    .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, var(--mu-blue-dark) 0%, #002266 100%);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px 20px 22px;
+        gap: 8px;
+        box-shadow: 0 12px 28px rgba(0, 26, 78, 0.35);
+        border-bottom: 2px solid var(--mu-gold);
+        animation: slideDownNav 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .nav-links.mobile-active {
+        display: flex;
+    }
+
+    @keyframes slideDownNav {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .nav-links a {
+        text-align: center;
+        padding: 12px 16px;
+        font-size: 1rem;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: var(--radius-sm);
+    }
+
+    .user-badge {
+        text-align: center;
+        padding: 10px 16px;
+        display: block;
+        margin: 4px 0;
+    }
+
+    /* Filter form on tablet: 2-column grid */
+    .filter-form {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .filter-form input[type="text"] {
+        grid-column: span 2;
+    }
+
+    .filter-form .btn-reset {
+        grid-column: span 2;
+        text-align: center;
+        padding: 12px;
+    }
+
+    /* Items grid on tablet: 2 columns */
+    .items-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    /* Admin dashboard stats: 3 columns */
+    .admin-stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
+
+    /* Detail page on tablet: stacked 1 column */
     .detail-grid {
         grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .image-gallery img {
+        max-height: 380px;
     }
 }
 
-@media (max-width: 768px) {
-    .filter-form {
-        grid-template-columns: 1fr;
-    }
-    
-    .form-row {
-        grid-template-columns: 1fr;
-    }
-    
-    .type-toggle-group {
-        grid-template-columns: 1fr;
+/* 2. MOBILE PHONES (< 768px) */
+@media (max-width: 767px) {
+    body {
+        font-size: 15px;
     }
 
-    .form-card, .detail-container, .auth-card {
-        padding: 22px 18px;
+    .container {
+        padding: 0 12px;
+        margin: 14px auto;
     }
 
+    .nav-container {
+        padding: 0 14px;
+    }
+
+    .logo {
+        font-size: 1.15rem;
+    }
+
+    .logo-badge {
+        font-size: 0.95rem;
+        padding: 2px 8px;
+    }
+
+    /* Hero Section Mobile */
     .hero-section {
-        padding: 24px 16px;
+        padding: 22px 14px;
+        border-radius: var(--radius-md);
+        margin-bottom: 18px;
     }
 
     .hero-section h1 {
-        font-size: 1.55rem;
+        font-size: clamp(1.35rem, 5.5vw, 1.65rem);
+        line-height: 1.35;
+    }
+
+    .hero-section p {
+        font-size: 0.9rem;
+    }
+
+    /* Filter Form Stacked Mobile */
+    .filter-card {
+        padding: 14px 12px;
+        border-radius: var(--radius-md);
+        margin-bottom: 20px;
+    }
+
+    .filter-form {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .filter-form input[type="text"],
+    .filter-form input[type="date"],
+    .filter-form select,
+    .filter-form .btn-reset {
+        grid-column: span 1;
+        font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+        padding: 12px 14px;
+        border-radius: var(--radius-sm);
+    }
+
+    .filter-form .btn-reset {
+        width: 100%;
+        padding: 12px;
+    }
+
+    /* Items Grid: Single Column Full Width on Mobile */
+    .items-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .item-card {
+        border-radius: var(--radius-md);
+    }
+
+    .card-img, .no-img-placeholder {
+        height: 210px;
+    }
+
+    .card-body {
+        padding: 16px 14px;
+    }
+
+    .card-body h3 {
+        font-size: 1.15rem;
+    }
+
+    .time-tag {
+        font-size: 0.82rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .btn-detail {
+        padding: 12px;
+        font-size: 0.95rem;
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Detail Page Mobile */
+    .detail-container {
+        padding: 16px 12px;
+        border-radius: var(--radius-md);
+    }
+
+    .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .detail-header h2 {
+        font-size: 1.35rem;
+    }
+
+    .image-gallery img {
+        max-height: 260px;
+    }
+
+    .info-card, .action-card {
+        padding: 16px 14px;
+        border-radius: var(--radius-md);
+    }
+
+    .proof-box-found, .proof-box-lost {
+        padding: 14px 12px;
+    }
+
+    /* Forms (Report, Edit, Register, Login) */
+    .form-card, .auth-card {
+        padding: 20px 14px;
+        border-radius: var(--radius-md);
+        margin: 12px auto;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .type-toggle-group {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .type-toggle-card {
+        padding: 14px;
+        font-size: 0.95rem;
+    }
+
+    /* Input size for mobile touch */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"],
+    input[type="time"],
+    select,
+    textarea {
+        font-size: 16px !important;
+        padding: 12px 14px;
+        border-radius: var(--radius-sm);
+    }
+
+    textarea {
+        height: 110px;
+    }
+
+    .btn-submit {
+        padding: 13px;
+        font-size: 1.05rem;
+    }
+
+    /* Admin Dashboard on Mobile */
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .admin-stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .stat-views {
+        grid-column: span 2;
+    }
+
+    .stat-card {
+        padding: 14px 12px;
+    }
+
+    .stat-number {
+        font-size: 1.4rem;
+    }
+
+    .admin-tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .admin-tabs .tab-btn {
+        width: 100%;
+        text-align: center;
+        padding: 12px;
+    }
+
+    .table-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .admin-search-input {
+        width: 100% !important;
+    }
+
+    .table-responsive {
+        border-radius: var(--radius-sm);
+        margin: 0 -8px;
+    }
+
+    .admin-table {
+        min-width: 640px;
+    }
+}
+
+/* 3. EXTRA SMALL PHONES (<= 380px) */
+@media (max-width: 380px) {
+    .admin-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-views {
+        grid-column: span 1;
+    }
+
+    .logo-text {
+        font-size: 1.05rem;
     }
 }
 

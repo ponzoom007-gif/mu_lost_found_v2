@@ -57,11 +57,15 @@ SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "item-images")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(
     __name__,
     template_folder=os.path.join(BASE_DIR, "templates"),
     static_folder=os.path.join(BASE_DIR, "static")
 )
+# Enable ProxyFix to properly forward HTTPS scheme and host headers from Vercel/Railway
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 handler = app  # WSGI Handler export for Vercel
 app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
 
@@ -524,6 +528,20 @@ def logout():
 
 # ----------------- GOOGLE OAUTH 2.0 ----------------- #
 
+def get_google_redirect_uri():
+    explicit_uri = os.environ.get("GOOGLE_REDIRECT_URI")
+    if explicit_uri:
+        return explicit_uri.strip()
+    
+    scheme = "https"
+    host = request.headers.get("X-Forwarded-Host") or request.host or "127.0.0.1:5001"
+    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+        scheme = "http"
+    elif request.headers.get("X-Forwarded-Proto"):
+        scheme = request.headers.get("X-Forwarded-Proto")
+        
+    return f"{scheme}://{host}/login/google/callback"
+
 @app.route("/login/google")
 def login_google():
     if "user_id" in session:
@@ -536,9 +554,7 @@ def login_google():
         flash("⚙️ ระบบ Google OAuth พร้อมใช้งาน! (กรุณาระบุ GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน Environment Variables เพื่อเปิดใช้งานบัญชีจริง)", "info")
         return redirect(url_for("login"))
     
-    redirect_uri = url_for("login_google_callback", _external=True)
-    if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+    redirect_uri = get_google_redirect_uri()
 
     google_auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
@@ -560,9 +576,7 @@ def login_google_callback():
         return redirect(url_for("login"))
     
     try:
-        redirect_uri = url_for("login_google_callback", _external=True)
-        if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
-            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+        redirect_uri = get_google_redirect_uri()
 
         client_id = (os.environ.get("GOOGLE_CLIENT_ID") or GOOGLE_CLIENT_ID or "").strip()
         client_secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET or "").strip()

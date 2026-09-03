@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Modern Clean Mahidol High-Contrast Hero Banner -->
+<!-- Modern Mahidol Royal Navy & Gold Hero Banner -->
 <div class="hero-section">
     <div class="hero-content">
         <span class="hero-badge">Mahidol University Community Hub</span>
-        <h1 class="hero-title">ศูนย์แจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</h1>
-        <p class="hero-subtitle">พื้นที่กลางสำหรับชาวมหิดลในการแจ้งของหาย ค้นหาสิ่งของ และส่งคืนเจ้าของตัวจริง</p>
+        <h1 class="hero-title">ศูนย์แจ้งและติดตามของหาย <span class="highlight-gold">มหาวิทยาลัยมหิดล</span></h1>
+        <p class="hero-subtitle">พื้นที่กลางสำหรับ<span class="highlight-gold-soft">ชาวมหิดล</span> ในการแจ้งของหาย ค้นหาสิ่งของ และส่งคืนเจ้าของตัวจริง</p>
         
         <!-- Live Community Stats Cards -->
         <div class="hero-stats-grid">
             <div class="stat-card">
-                <span class="stat-number stat-gold">{{ stats.returned_count }}</span>
+                <span class="stat-number">{{ stats.returned_count }}</span>
                 <span class="stat-label">ส่งคืนสำเร็จแล้ว (ชิ้น)</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number stat-blue">{{ stats.active_count }}</span>
+                <span class="stat-number">{{ stats.active_count }}</span>
                 <span class="stat-label">กำลังตามหา / รอรับ (รายการ)</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number stat-slate">{{ stats.member_count }}</span>
+                <span class="stat-number">{{ stats.member_count }}</span>
                 <span class="stat-label">สมาชิกในระบบ (คน)</span>
             </div>
         </div>

@@ -170,22 +170,37 @@ class DBWrapper:
     def close(self):
         self.conn.close()
 
-def get_db_connection():
-    if DATABASE_URL and HAS_PSYCOPG2:
-        try:
-            conn_str = DATABASE_URL
-            # Add sslmode for Supabase/PostgreSQL if not present
-            if "sslmode=" not in conn_str and "localhost" not in conn_str and "127.0.0.1" not in conn_str:
-                sep = "&" if "?" in conn_str else "?"
-                conn_str = f"{conn_str}{sep}sslmode=require"
+DEFAULT_ADMIN_EMAIL = "ponpong.bum@student.mahidol.ac.th"
+DEFAULT_ADMIN_PW_HASH = generate_password_hash("Pponmahidol69&", method="pbkdf2:sha256")
 
-            conn = psycopg2.connect(conn_str, cursor_factory=DictCursor, connect_timeout=8)
+def sanitize_database_url(raw_url):
+    if not raw_url:
+        return None
+    url = raw_url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    
+    # Strip accidental brackets around password e.g. postgres:[password]@...
+    url = re.sub(r':\[(.*?)\]@', r':\1@', url)
+    
+    # Ensure sslmode=require for cloud PostgreSQL
+    if "sslmode=" not in url and "localhost" not in url and "127.0.0.1" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
+        
+    return url
+
+def get_db_connection():
+    clean_db_url = sanitize_database_url(DATABASE_URL)
+    if clean_db_url and HAS_PSYCOPG2:
+        try:
+            conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
             return DBWrapper(conn, is_postgres=True)
         except Exception as e:
             print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
     
     try:
-        conn = sqlite3.connect(DATABASE_PATH, timeout=5)
+        conn = sqlite3.connect(DATABASE_PATH, timeout=4)
         conn.row_factory = sqlite3.Row
         return DBWrapper(conn, is_postgres=False)
     except Exception as e:
@@ -194,91 +209,27 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return DBWrapper(conn, is_postgres=False)
 
-USERS_SQL_PG = """
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    fullname VARCHAR(255) NOT NULL,
-    faculty VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    contact_phone VARCHAR(50),
-    is_admin INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-ITEMS_SQL_PG = """
-CREATE TABLE IF NOT EXISTS items (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    item_type VARCHAR(20) NOT NULL,
-    faculty_location VARCHAR(255) NOT NULL,
-    incident_date VARCHAR(50) NOT NULL,
-    incident_time VARCHAR(50) NOT NULL,
-    description TEXT,
-    verification_question TEXT,
-    item_image VARCHAR(500),
-    found_spot_image VARCHAR(500),
-    custody_type VARCHAR(50) DEFAULT 'keep_self',
-    drop_location_detail TEXT,
-    drop_spot_image VARCHAR(500),
-    contact_info VARCHAR(255),
-    views_count INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-USERS_SQL_SQLITE = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    fullname TEXT NOT NULL,
-    faculty TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    contact_phone TEXT,
-    is_admin INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-ITEMS_SQL_SQLITE = """
-CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    item_type TEXT NOT NULL,
-    faculty_location TEXT NOT NULL,
-    incident_date TEXT NOT NULL,
-    incident_time TEXT NOT NULL,
-    description TEXT,
-    verification_question TEXT,
-    item_image TEXT,
-    found_spot_image TEXT,
-    custody_type TEXT DEFAULT 'keep_self',
-    drop_location_detail TEXT,
-    drop_spot_image TEXT,
-    contact_info TEXT,
-    views_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-"""
-
 def check_and_init_db():
     try:
         conn = get_db_connection()
         if conn.is_postgres:
             conn.execute(USERS_SQL_PG)
             conn.execute(ITEMS_SQL_PG)
+
+            # Ensure primary admin account exists and has the requested password
+            admin_user = conn.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_EMAIL,)).fetchone()
+            if admin_user:
+                conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, DEFAULT_ADMIN_EMAIL))
+            else:
+                conn.execute(
+                    "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                    (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
+                )
+
             for email in ADMIN_EMAILS:
                 conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
             conn.commit()
-            print("PostgreSQL tables checked and ready.")
+            print("PostgreSQL tables and Admin account ready.")
         else:
             conn.execute(USERS_SQL_SQLITE)
             conn.execute(ITEMS_SQL_SQLITE)
@@ -295,10 +246,20 @@ def check_and_init_db():
             except Exception:
                 pass
 
+            # Ensure primary admin in SQLite
+            admin_user = conn.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_EMAIL,)).fetchone()
+            if admin_user:
+                conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, DEFAULT_ADMIN_EMAIL))
+            else:
+                conn.execute(
+                    "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                    (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
+                )
+
             for email in ADMIN_EMAILS:
                 conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
             conn.commit()
-            print("SQLite tables checked and ready.")
+            print("SQLite tables and Admin account ready.")
         conn.close()
     except Exception as e:
         print(f"Error checking/initializing database: {e}")

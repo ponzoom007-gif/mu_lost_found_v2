@@ -196,6 +196,13 @@ def sanitize_database_url(raw_url):
     # Strip accidental brackets around password e.g. postgres:[password]@...
     url = re.sub(r':\[(.*?)\]@', r':\1@', url)
     
+    # Safely URL-encode special characters in the password segment (e.g. #, %, &, ?)
+    m = re.match(r'^(postgresql://)([^:]+):([^@]+)@(.+)$', url)
+    if m:
+        prefix, user, pw, host_part = m.groups()
+        encoded_pw = urllib.parse.quote_plus(urllib.parse.unquote_plus(pw))
+        url = f"{prefix}{user}:{encoded_pw}@{host_part}"
+
     # Ensure sslmode=require for cloud PostgreSQL
     if "sslmode=" not in url and "localhost" not in url and "127.0.0.1" not in url:
         sep = "&" if "?" in url else "?"

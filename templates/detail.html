@@ -1,5 +1,33 @@
 {% extends "base.html" %}
 
+{% block meta %}
+    <!-- Item Specific Social Preview -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="MU Lost & Found">
+    <meta property="og:title" content="{{ item['title'] }} ({{ 'เก็บได้' if item['item_type'] == 'found' else 'ทำหาย' }}) - MU Lost & Found">
+    <meta property="og:description" content="สถานที่: {{ item['faculty_location'] }} | วันที่: {{ item['incident_date'] }} · {{ item['incident_time'] }} น.">
+    <meta property="og:url" content="{{ request.base_url }}">
+    {% if item['item_image'] %}
+        {% set detail_img = item['item_image'] | image_url %}
+        {% if not detail_img.startswith('http') %}
+            {% set detail_img = url_for('static', filename='uploads/' ~ item['item_image'], _external=True) %}
+        {% endif %}
+        <meta property="og:image" content="{{ detail_img | replace('http://', 'https://') }}">
+        <meta property="og:image:secure_url" content="{{ detail_img | replace('http://', 'https://') }}">
+    {% else %}
+        <meta property="og:image" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
+        <meta property="og:image:secure_url" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
+    {% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ item['title'] }} - MU Lost & Found">
+    <meta name="twitter:description" content="สถานที่: {{ item['faculty_location'] }} | วันที่: {{ item['incident_date'] }}">
+    {% if item['item_image'] %}
+        <meta name="twitter:image" content="{{ detail_img | replace('http://', 'https://') }}">
+    {% else %}
+        <meta name="twitter:image" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
+    {% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="detail-container">
     <a href="{{ url_for('index') }}" class="back-link">← กลับหน้ารายการประกาศทั้งหมด</a>

@@ -75,12 +75,16 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="item_image">📷 รูปถ่ายสิ่งของ (สูงสุด 5MB)</label>
-                <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp">
+                <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
+                <div class="image-preview-box" id="preview_item_image" style="display: none;"></div>
             </div>
 
             <div class="form-group">
                 <label for="found_spot_image">📍 รูปถ่ายจุดที่พบ / ทำหาย (สูงสุด 5MB)</label>
-                <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp">
+                <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
+                <div class="image-preview-box" id="preview_found_spot_image" style="display: none;"></div>
             </div>
         </div>
 
@@ -108,7 +112,9 @@
                 </div>
                 <div class="form-group">
                     <label for="drop_spot_image">📸 รูปถ่ายจุดที่ฝากไว้ / ใบรับฝาก (สูงสุด 5MB)</label>
-                    <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp">
+                    <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                    <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
+                    <div class="image-preview-box" id="preview_drop_spot_image" style="display: none;"></div>
                 </div>
             </div>
         </div>

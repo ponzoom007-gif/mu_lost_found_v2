@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MU Lost & Found - ศูนย์แจ้งของหาย มหาวิทยาลัยมหิดล</title>
     <!-- Google Fonts: Prompt & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="nav-container">
             <a href="{{ url_for('index') }}" class="logo">
@@ -18,26 +19,20 @@
                 <span class="logo-text">Lost & Found</span>
             </a>
 
-            <!-- Right-side Navigation Actions -->
-            <div class="nav-actions">
-                <a href="{{ url_for('index') }}" class="nav-link-item">หน้าแรก</a>
+            <!-- Desktop Navigation Actions -->
+            <div class="nav-actions desktop-nav">
+                <a href="{{ url_for('index') }}" class="nav-link-item">🏠 หน้าแรก</a>
                 
                 {% if session.get('user_id') %}
                     <a href="{{ url_for('report') }}" class="btn-nav">+ แจ้งของหาย / พบของ</a>
                     
-                    <!-- กล่องปุ่มเมนู 3 ขีด (3-Line Hamburger & User Menu Dropdown) -->
-                    <div class="menu-dropdown-wrapper" id="menuDropdownWrapper">
-                        <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="เมนูผู้ใช้งาน" aria-expanded="false" title="เมนูตัวเลือก">
+                    <div class="menu-dropdown-wrapper">
+                        <button type="button" class="nav-menu-btn" id="desktopUserBtn" aria-label="เมนูผู้ใช้งาน">
                             <span class="user-greeting">{% if is_admin %}👑{% else %}👤{% endif %} {{ session.get('fullname').split()[0] if session.get('fullname') else 'บัญชีของฉัน' }}</span>
-                            <div class="hamburger-bars">
-                                <span class="bar"></span>
-                                <span class="bar"></span>
-                                <span class="bar"></span>
-                            </div>
+                            <span class="dropdown-caret">▼</span>
                         </button>
                         
-                        <!-- รายการเมนูภายใน 3 ขีด -->
-                        <div class="menu-dropdown" id="menuDropdown">
+                        <div class="menu-dropdown" id="desktopDropdown">
                             <div class="dropdown-user-header">
                                 <div class="dropdown-avatar">{% if is_admin %}👑{% else %}👤{% endif %}</div>
                                 <div class="dropdown-user-info">
@@ -50,15 +45,6 @@
                             <div class="dropdown-divider"></div>
 
                             <div class="dropdown-menu-list">
-                                <a href="{{ url_for('index') }}" class="dropdown-link-item mobile-only">
-                                    <span class="dropdown-icon">🏠</span>
-                                    <span>หน้าแรก</span>
-                                </a>
-                                <a href="{{ url_for('report') }}" class="dropdown-link-item mobile-only highlight-link">
-                                    <span class="dropdown-icon">➕</span>
-                                    <span>แจ้งของหาย / พบของ</span>
-                                </a>
-                                
                                 {% if is_admin %}
                                     <a href="{{ url_for('admin_dashboard') }}" class="dropdown-link-item admin-link">
                                         <span class="dropdown-icon">👑</span>
@@ -67,7 +53,7 @@
                                 {% endif %}
 
                                 <a href="{{ url_for('my_posts') }}" class="dropdown-link-item">
-                                    <span class="dropdown-icon">📋</span>
+                                    <span class="dropdown-icon">📦</span>
                                     <span>โพสต์ของฉัน</span>
                                 </a>
                                 
@@ -85,14 +71,88 @@
                     <a href="{{ url_for('register') }}" class="btn-register">สมัครสมาชิก</a>
                 {% endif %}
             </div>
+
+            <!-- Mobile Drawer Hamburger Toggle Button -->
+            <button type="button" class="mobile-menu-toggle" id="mobileDrawerOpenBtn" aria-label="เปิดเมนู">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
         </div>
     </header>
 
+    <!-- Mobile Slide-Over Drawer & Backdrop -->
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div class="drawer-header">
+            <div class="drawer-logo">
+                <span class="logo-badge">MU</span>
+                <span class="logo-text">Lost & Found</span>
+            </div>
+            <button type="button" class="drawer-close-btn" id="mobileDrawerCloseBtn" aria-label="ปิดเมนู">&times;</button>
+        </div>
+
+        {% if session.get('user_id') %}
+            <div class="drawer-user-card">
+                <div class="drawer-avatar">{% if is_admin %}👑{% else %}👤{% endif %}</div>
+                <div class="drawer-user-details">
+                    <div class="drawer-user-name">{{ session.get('fullname') }}</div>
+                    <div class="drawer-user-email">{{ session.get('email') }}</div>
+                    <span class="drawer-badge">{% if is_admin %}👑 ผู้ดูแลระบบ (Admin){% else %}👤 สมาชิกมหิดล ({{ session.get('faculty') or 'นักศึกษา' }}){% endif %}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="drawer-guest-card">
+                <p>ยินดีต้อนรับสู่ศูนย์แจ้งของหาย ม.มหิดล</p>
+                <div class="drawer-auth-buttons">
+                    <a href="{{ url_for('login') }}" class="btn-login" style="flex: 1; text-align: center;">เข้าสู่ระบบ</a>
+                    <a href="{{ url_for('register') }}" class="btn-register" style="flex: 1; text-align: center;">สมัครสมาชิก</a>
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="drawer-links">
+            <a href="{{ url_for('index') }}" class="drawer-link-item">
+                <span class="drawer-icon">🏠</span>
+                <span>หน้าแรก</span>
+            </a>
+            
+            {% if session.get('user_id') %}
+                <a href="{{ url_for('report') }}" class="drawer-link-item highlight-link">
+                    <span class="drawer-icon">➕</span>
+                    <span>แจ้งของหาย / พบของ</span>
+                </a>
+                <a href="{{ url_for('my_posts') }}" class="drawer-link-item">
+                    <span class="drawer-icon">📦</span>
+                    <span>โพสต์ของฉัน</span>
+                </a>
+                
+                {% if is_admin %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="drawer-link-item admin-link">
+                        <span class="drawer-icon">👑</span>
+                        <span>แผงควบคุมระบบ (Admin)</span>
+                    </a>
+                {% endif %}
+                
+                <div class="drawer-divider"></div>
+                
+                <a href="{{ url_for('logout') }}" class="drawer-link-item logout-link">
+                    <span class="drawer-icon">🚪</span>
+                    <span>ออกจากระบบ</span>
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
     <main class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                    <div class="alert alert-{{ category }}">
+                        <span class="alert-icon">{% if category == 'success' %}✅{% elif category == 'danger' %}⚠️{% elif category == 'warning' %}🔔{% else %}ℹ️{% endif %}</span>
+                        <span>{{ message }}</span>
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
@@ -100,8 +160,41 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer>
-        <p>© 2026 Mahidol University Lost & Found Hub | เฉพาะนักศึกษาและบุคลากรมหาวิทยาลัยมหิดล</p>
+    <!-- Mobile Bottom Navigation Bar (App-style) -->
+    <nav class="mobile-bottom-nav">
+        <a href="{{ url_for('index') }}" class="bottom-nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+            <span class="bottom-icon">🏠</span>
+            <span class="bottom-label">หน้าแรก</span>
+        </a>
+        <a href="{{ url_for('report') if session.get('user_id') else url_for('login') }}" class="bottom-nav-item center-fab">
+            <div class="fab-circle">
+                <span>➕</span>
+            </div>
+            <span class="bottom-label">แจ้งของ</span>
+        </a>
+        <a href="{{ url_for('my_posts') if session.get('user_id') else url_for('login') }}" class="bottom-nav-item {% if request.endpoint == 'my_posts' %}active{% endif %}">
+            <span class="bottom-icon">📦</span>
+            <span class="bottom-label">ของฉัน</span>
+        </a>
+        <button type="button" class="bottom-nav-item" id="mobileBottomProfileBtn">
+            <span class="bottom-icon">{% if is_admin %}👑{% else %}👤{% endif %}</span>
+            <span class="bottom-label">{% if session.get('user_id') %}โปรไฟล์{% else %}บัญชี{% endif %}</span>
+        </button>
+    </nav>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <span class="logo-badge">MU</span>
+                <strong>Mahidol University Lost & Found Hub</strong>
+            </div>
+            <p style="font-size: 0.88rem; color: #94A3B8; margin-top: 6px;">
+                ระบบศูนย์กลางแจ้งของหายและส่งคืนสิ่งของ สำหรับนักศึกษา อาจารย์ และบุคลากรมหาวิทยาลัยมหิดล
+            </p>
+            <p style="font-size: 0.82rem; color: #64748B; margin-top: 10px;">
+                &copy; 2026 Mahidol University Community Hub | พัฒนาเพื่อชาวมหิดล
+            </p>
+        </div>
     </footer>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>

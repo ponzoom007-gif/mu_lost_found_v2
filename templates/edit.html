@@ -86,8 +86,9 @@
                         <img src="{{ item['item_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
                     </div>
                 {% endif %}
-                <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp">
-                <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+                <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB (ปล่อยว่างหากไม่เปลี่ยน)</small>
+                <div class="image-preview-box" id="preview_item_image" style="display: none;"></div>
             </div>
 
             <div class="form-group">
@@ -98,8 +99,9 @@
                         <img src="{{ item['found_spot_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
                     </div>
                 {% endif %}
-                <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp">
-                <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+                <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB (ปล่อยว่างหากไม่เปลี่ยน)</small>
+                <div class="image-preview-box" id="preview_found_spot_image" style="display: none;"></div>
             </div>
         </div>
 
@@ -133,8 +135,9 @@
                             <img src="{{ item['drop_spot_image'] | image_url }}" style="height: 75px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);">
                         </div>
                     {% endif %}
-                    <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp">
-                    <small style="color: var(--text-muted);">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรูป</small>
+                    <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
+                    <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB (ปล่อยว่างหากไม่เปลี่ยน)</small>
+                    <div class="image-preview-box" id="preview_drop_spot_image" style="display: none;"></div>
                 </div>
             </div>
         </div>

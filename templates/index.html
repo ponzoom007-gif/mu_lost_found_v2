@@ -1,15 +1,64 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Modern Mahidol Interactive Hero Banner -->
 <div class="hero-section">
-    <span class="hero-badge">🎓 Mahidol University Community Hub</span>
-    <h1>ศูนย์แจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</h1>
-    <p>พื้นที่ปลอดภัยสำหรับชาวมหิดลในการแจ้งของหายและส่งคืนสิ่งของที่เก็บได้</p>
+    <div class="hero-content">
+        <span class="hero-badge">🏛️ Mahidol University Community Hub</span>
+        <h1 class="hero-title">ศูนย์แจ้งและติดตามของหาย มหาวิทยาลัยมหิดล</h1>
+        <p class="hero-subtitle">พื้นที่ปลอดภัยสำหรับชาวมหิดลในการแจ้งของหาย ค้นหาสิ่งของ และส่งคืนเจ้าของตัวจริง</p>
+        
+        <!-- Live Community Stats Cards -->
+        <div class="hero-stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🤝</div>
+                <div class="stat-info">
+                    <span class="stat-number">{{ stats.returned_count }}</span>
+                    <span class="stat-label">ส่งคืนสำเร็จแล้ว</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔍</div>
+                <div class="stat-info">
+                    <span class="stat-number">{{ stats.active_count }}</span>
+                    <span class="stat-label">กำลังตามหา / รอรับ</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-info">
+                    <span class="stat-number">{{ stats.member_count }}</span>
+                    <span class="stat-label">สมาชิกชาวมหิดล</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- Category Chips Bar -->
+<div class="category-chips-container">
+    <button type="button" class="category-chip active" data-category="">ทั้งหมด</button>
+    {% for cat in categories %}
+        <button type="button" class="category-chip" data-category="{{ cat }}">
+            {% if 'อิเล็กทรอนิกส์' in cat %}💻
+            {% elif 'กระเป๋า' in cat or 'เงิน' in cat %}👛
+            {% elif 'บัตร' in cat or 'เอกสาร' in cat %}🪪
+            {% elif 'กุญแจ' in cat %}🔑
+            {% elif 'แต่งกาย' in cat or 'แว่น' in cat %}👓
+            {% elif 'เครื่องเขียน' in cat %}📚
+            {% else %}📦{% endif %}
+            {{ cat }}
+        </button>
+    {% endfor %}
+</div>
+
+<!-- Comprehensive Filter Card -->
 <div class="filter-card">
     <div class="filter-form">
-        <input type="text" id="liveSearchInput" placeholder="🔍 ค้นหาชื่อสิ่งของ, รายละเอียด..." autocomplete="off">
+        <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="liveSearchInput" placeholder="ค้นหาชื่อสิ่งของ, จุดที่พบ, รายละเอียด..." autocomplete="off">
+        </div>
         
         <select id="liveFacultyFilter">
             <option value="">🏛️ ทุกคณะ / ทุกสถานที่</option>
@@ -26,21 +75,38 @@
 
         <input type="date" id="liveDateFilter" title="แสดงประกาศตั้งแต่วันที่เลือกเป็นต้นมาจนถึงปัจจุบัน">
 
-        <button type="button" id="btnResetFilter" class="btn-reset">ล้างการค้นหา</button>
+        <button type="button" id="btnResetFilter" class="btn-reset">ล้างตัวกรอง</button>
     </div>
+</div>
+
+<!-- Feed Header & Count Summary -->
+<div class="feed-header-bar">
+    <div class="feed-count-summary">
+        {% if pagination.total_items > 0 %}
+            แสดงรายการที่ <strong>{{ pagination.start_count }} - {{ pagination.end_count }}</strong> จากทั้งหมด <strong>{{ pagination.total_items }}</strong> รายการ
+        {% else %}
+            พบทั้งหมด <strong>0</strong> รายการ
+        {% endif %}
+    </div>
+    
+    {% if session.get('user_id') %}
+        <a href="{{ url_for('report') }}" class="btn-nav-compact">+ ลงประกาศใหม่</a>
+    {% endif %}
 </div>
 
 <div id="noLiveResults" class="empty-state" style="display: none;">
     <p>🔍 ไม่พบสิ่งของที่ตรงกับเงื่อนไขการค้นหาของคุณ</p>
-    <small style="color: #94A3B8; margin-top: 6px; display: block;">ลองเปลี่ยนคำค้นหา หรือเลือกสถานที่อื่นๆ</small>
+    <small style="color: #94A3B8; margin-top: 6px; display: block;">ลองเปลี่ยนคำค้นหา หรือกดปุ่ม "ล้างตัวกรอง"</small>
 </div>
 
+<!-- Items Grid -->
 <div class="items-grid" id="itemsContainer">
     {% for item in items %}
     <div class="item-card {% if item['status'] == 'returned' %}item-returned{% endif %}"
          data-title="{{ item['title'] | lower }}"
          data-desc="{{ (item['description'] or '') | lower }}"
          data-location="{{ item['faculty_location'] }}"
+         data-category="{{ item['category'] }}"
          data-type="{{ item['item_type'] }}"
          data-date="{{ item['incident_date'] }}">
         
@@ -52,12 +118,16 @@
             {% if item['item_image'] %}
                 <img src="{{ item['item_image'] | image_url }}" alt="{{ item['title'] }}" class="card-img" loading="lazy">
             {% else %}
-                <div class="no-img-placeholder">ไม่ได้แนบรูปสิ่งของ</div>
+                <div class="no-img-placeholder">
+                    <span>📷</span>
+                    <small>ไม่ได้แนบรูปสิ่งของ</small>
+                </div>
             {% endif %}
         </div>
 
         <div class="card-body">
-            <h3>{{ item['title'] }}</h3>
+            <div class="card-category-tag">{{ item['category'] or 'ทั่วไป' }}</div>
+            <h3 class="card-title">{{ item['title'] }}</h3>
             <p class="location-tag">📍 {{ item['faculty_location'] }}</p>
             <p class="time-tag">
                 <span>🗓️ {{ item['incident_date'] }} · ⏰ {{ item['incident_time'] }} น.</span>
@@ -97,4 +167,40 @@
     </div>
     {% endfor %}
 </div>
+
+<!-- 7. Pagination Navigation Bar (หน้า 1, 2, 3, 4...) -->
+{% if pagination.total_pages > 1 %}
+<div class="pagination-container" id="paginationBar">
+    <div class="pagination-list">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('index', page=1) }}" class="page-btn page-nav-btn" title="หน้าแรก">« หน้าแรก</a>
+            <a href="{{ url_for('index', page=pagination.prev_num) }}" class="page-btn page-nav-btn" title="ก่อนหน้า">‹ ก่อนหน้า</a>
+        {% else %}
+            <span class="page-btn page-nav-btn disabled">« หน้าแรก</span>
+            <span class="page-btn page-nav-btn disabled">‹ ก่อนหน้า</span>
+        {% endif %}
+
+        {% for p in range(1, pagination.total_pages + 1) %}
+            {% if p == pagination.page %}
+                <span class="page-btn active">{{ p }}</span>
+            {% elif p <= 3 or p >= pagination.total_pages - 1 or (p >= pagination.page - 1 and p <= pagination.page + 1) %}
+                <a href="{{ url_for('index', page=p) }}" class="page-btn">{{ p }}</a>
+            {% elif p == 4 and pagination.page > 5 %}
+                <span class="page-ellipsis">...</span>
+            {% elif p == pagination.total_pages - 2 and pagination.page < pagination.total_pages - 4 %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('index', page=pagination.next_num) }}" class="page-btn page-nav-btn" title="ถัดไป">ถัดไป ›</a>
+            <a href="{{ url_for('index', page=pagination.total_pages) }}" class="page-btn page-nav-btn" title="หน้าสุดท้าย">หน้าสุดท้าย »</a>
+        {% else %}
+            <span class="page-btn page-nav-btn disabled">ถัดไป ›</span>
+            <span class="page-btn page-nav-btn disabled">หน้าสุดท้าย »</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

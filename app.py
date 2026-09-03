@@ -6,6 +6,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import json
+import math
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -71,10 +72,11 @@ app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_producti
 
 # 1. จำกัดขนาดไฟล์อัปโหลดไม่เกิน 5 MB ป้องกัน Denial of Service (DoS)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 Megabytes
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "heic", "heif", "jfif"}
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/pjpeg", "image/webp",
-    "image/jpg", "image/x-png", "image/jfif"
+    "image/jpg", "image/x-png", "image/jfif", "image/heic", "image/heif",
+    "image/heic-sequence", "image/heif-sequence", "application/octet-stream"
 }
 
 # Safe upload directory creation on read-only serverless environments
@@ -588,7 +590,7 @@ def login():
 
         if not is_valid_mahidol_email(email):
             flash("กรุณากรอกอีเมลของมหาวิทยาลัยมหิดลให้ถูกต้อง (เช่น @student.mahidol.ac.th, @mahidol.edu)", "danger")
-            return render_template("login.html", email=email)
+            return render_template("login.html", email=email, unregistered=False)
 
         try:
             conn = get_db_connection()
@@ -621,35 +623,41 @@ def login():
 
             conn.close()
 
-            if user:
-                user_dict = dict(user)
-                is_match = False
-                try:
-                    is_match = check_password_hash(user_dict["password_hash"], password) or check_password_hash(user_dict["password_hash"], password.strip())
-                except Exception:
-                    pass
-                if not is_match and (password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&") and email == DEFAULT_ADMIN_EMAIL.lower():
-                    is_match = True
+            # 6. ถ้าไม่มีอีเมลนี้ในระบบ ให้แจ้งเตือนว่ายังไม่ได้สมัครสมาชิก
+            if not user:
+                flash("ไม่พบอีเมลนี้ในระบบ กรุณาสมัครสมาชิกก่อนเข้าใช้งาน", "warning")
+                return render_template("login.html", email=email, unregistered=True)
 
-                if is_match:
-                    session["user_id"] = user_dict["id"]
-                    session["email"] = user_dict["email"]
-                    session["fullname"] = user_dict["fullname"]
-                    session["faculty"] = user_dict["faculty"]
-                    user_email = str(user_dict.get("email") or "").lower().strip()
-                    is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
-                    session["is_admin"] = is_adm
-                    flash(f"ยินดีต้อนรับคุณ {user_dict['fullname']} ({user_dict['email']})", "success")
-                    return redirect(url_for("index"))
+            user_dict = dict(user)
+            is_match = False
+            try:
+                is_match = check_password_hash(user_dict["password_hash"], password) or check_password_hash(user_dict["password_hash"], password.strip())
+            except Exception:
+                pass
+            if not is_match and (password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&") and email == DEFAULT_ADMIN_EMAIL.lower():
+                is_match = True
+
+            if is_match:
+                session["user_id"] = user_dict["id"]
+                session["email"] = user_dict["email"]
+                session["fullname"] = user_dict["fullname"]
+                session["faculty"] = user_dict["faculty"]
+                user_email = str(user_dict.get("email") or "").lower().strip()
+                is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
+                session["is_admin"] = is_adm
+                flash(f"ยินดีต้อนรับคุณ {user_dict['fullname']} ({user_dict['email']})", "success")
+                return redirect(url_for("index"))
             
-            flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง (กรุณาตรวจสอบตัวพิมพ์เล็ก-ใหญ่)", "danger")
-            return render_template("login.html", email=email)
+            # กรณีมีอีเมลแต่รหัสผ่านผิด
+            flash("รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบตัวพิมพ์เล็ก-ใหญ่และลองใหม่อีกครั้ง", "danger")
+            return render_template("login.html", email=email, unregistered=False)
+
         except Exception as e:
             print(f"Login error: {e}")
             flash(f"เกิดข้อผิดพลาดในการเข้าสู่ระบบ ({e}) กรุณาลองใหม่อีกครั้ง", "danger")
-            return render_template("login.html", email=email)
+            return render_template("login.html", email=email, unregistered=False)
 
-    return render_template("login.html", email="")
+    return render_template("login.html", email="", unregistered=False)
 
 @app.route("/logout")
 def logout():
@@ -787,21 +795,65 @@ def login_google_callback():
 def index():
     try:
         conn = get_db_connection()
-        items = conn.execute("""
+        all_items = conn.execute("""
             SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty 
             FROM items 
             LEFT JOIN users ON items.user_id = users.id 
             ORDER BY incident_date DESC, incident_time DESC, items.id DESC
         """).fetchall()
+
+        # Stats for Hero Section
+        total_returned_row = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'returned'").fetchone()
+        total_returned = total_returned_row[0] if total_returned_row else 0
+        total_active_row = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'active'").fetchone()
+        total_active = total_active_row[0] if total_active_row else 0
+        total_members_row = conn.execute("SELECT COUNT(*) FROM users").fetchone()
+        total_members = total_members_row[0] if total_members_row else 0
         conn.close()
-        return render_template("index.html", items=items)
+
+        # 7. Pagination Logic (หน้าละ 9 รายการ)
+        page = request.args.get("page", 1, type=int)
+        if page < 1:
+            page = 1
+        PER_PAGE = 9
+        total_items = len(all_items)
+        total_pages = max(1, math.ceil(total_items / PER_PAGE))
+        if page > total_pages:
+            page = total_pages
+
+        start_idx = (page - 1) * PER_PAGE
+        end_idx = start_idx + PER_PAGE
+        items = all_items[start_idx:end_idx]
+
+        pagination = {
+            "page": page,
+            "per_page": PER_PAGE,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_num": page - 1,
+            "next_num": page + 1,
+            "start_count": start_idx + 1 if total_items > 0 else 0,
+            "end_count": min(end_idx, total_items)
+        }
+
+        stats = {
+            "returned_count": total_returned,
+            "active_count": total_active,
+            "member_count": total_members
+        }
+
+        return render_template("index.html", items=items, all_items=all_items, pagination=pagination, stats=stats)
     except Exception as e:
         print(f"Index route DB exception: {e}")
         try:
             check_and_init_db()
         except Exception:
             pass
-        return render_template("index.html", items=[])
+        pagination = {"page": 1, "per_page": 9, "total_items": 0, "total_pages": 1, "has_prev": False, "has_next": False, "start_count": 0, "end_count": 0}
+        stats = {"returned_count": 0, "active_count": 0, "member_count": 0}
+        return render_template("index.html", items=[], all_items=[], pagination=pagination, stats=stats)
 
 @app.route("/report", methods=["GET", "POST"])
 @login_required
@@ -891,12 +943,24 @@ def detail(item_id):
         LEFT JOIN users ON items.user_id = users.id 
         WHERE items.id = ?
     """, (item_id,)).fetchone()
-    conn.close()
 
     if item is None:
+        conn.close()
         flash("ไม่พบข้อมูลรายการสิ่งของนี้", "danger")
         return redirect(url_for("index"))
-    return render_template("detail.html", item=item)
+
+    # 4. Smart Match: ค้นหารายการของที่ใกล้เคียงกัน (หมวดหมู่เดียวกัน หรือสถานที่เดียวกัน)
+    related_items = conn.execute("""
+        SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty
+        FROM items
+        LEFT JOIN users ON items.user_id = users.id
+        WHERE items.id != ? AND (items.category = ? OR items.faculty_location = ?) AND items.status = 'active'
+        ORDER BY items.id DESC
+        LIMIT 3
+    """, (item_id, item["category"], item["faculty_location"])).fetchall()
+    conn.close()
+
+    return render_template("detail.html", item=item, related_items=related_items)
 
 @app.route("/item/<int:item_id>/edit", methods=["GET", "POST"])
 @login_required

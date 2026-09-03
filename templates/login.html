@@ -23,6 +23,13 @@
         <span>เข้าสู่ระบบด้วย Google</span>
     </a>
 
+    {% if unregistered %}
+        <div class="unregistered-notice">
+            <p>🔔 <strong>ยังไม่พบอีเมลนี้ในระบบ</strong> คุณสามารถสมัครสมาชิกได้ทันที</p>
+            <a href="{{ url_for('register') }}" class="btn-register" style="display: block; text-align: center; margin-top: 8px; text-decoration: none;">👉 คลิกที่นี่เพื่อสมัครสมาชิกใหม่</a>
+        </div>
+    {% endif %}
+
     <div class="auth-divider">
         <span>หรือเข้าสู่ระบบด้วยรหัสผ่าน</span>
     </div>

@@ -145,6 +145,22 @@
                     </div>
                 {% endif %}
 
+                <!-- 4. One-Click Share Buttons -->
+                <div class="share-box-card">
+                    <span class="share-title">📢 แชร์ประกาศนี้เพื่อช่วยตามหา / ส่งคืน:</span>
+                    <div class="share-buttons-grid">
+                        <button type="button" class="btn-share btn-share-copy" onclick="copyCurrentPageUrl(this)" title="คัดลอกลิงก์">
+                            🔗 <span>คัดลอกลิงก์</span>
+                        </button>
+                        <a href="https://social-plugins.line.me/lineit/share?url={{ request.url | urlencode }}" target="_blank" rel="noopener noreferrer" class="btn-share btn-share-line" title="แชร์ลง LINE">
+                            💬 <span>LINE</span>
+                        </a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.url | urlencode }}" target="_blank" rel="noopener noreferrer" class="btn-share btn-share-fb" title="แชร์ลง Facebook">
+                            🌐 <span>Facebook</span>
+                        </a>
+                    </div>
+                </div>
+
                 <!-- กล่องจัดการด่วนสำหรับ Admin -->
                 {% if is_admin and session.get('user_id') != item['user_id'] %}
                     <div style="margin-top: 20px; padding: 14px; background: #FAF5FF; border: 1.5px dashed #A855F7; border-radius: var(--radius-md);">
@@ -166,5 +182,39 @@
             </div>
         </div>
     </div>
+
+    <!-- 4. Smart Match: รายการที่อาจเกี่ยวข้อง (หมวดหมู่เดียวกัน หรือสถานที่เดียวกัน) -->
+    {% if related_items %}
+    <div class="smart-match-section">
+        <div class="smart-match-header">
+            <h3>✨ รายการที่อาจเกี่ยวข้องกัน (Smart Match)</h3>
+            <p>สิ่งของในหมวดหมู่เดียวกันหรือสถานที่ใกล้เคียงที่กำลังอยู่ระหว่างการติดตาม</p>
+        </div>
+        <div class="items-grid">
+            {% for r_item in related_items %}
+            <div class="item-card">
+                <div class="card-img-wrapper" style="height: 160px;">
+                    <div class="card-badge {% if r_item['item_type'] == 'found' %}badge-found{% else %}badge-lost{% endif %}">
+                        {{ "🟢 เก็บได้" if r_item['item_type'] == 'found' else "🔴 ทำหาย" }}
+                    </div>
+                    {% if r_item['item_image'] %}
+                        <img src="{{ r_item['item_image'] | image_url }}" alt="{{ r_item['title'] }}" class="card-img" loading="lazy">
+                    {% else %}
+                        <div class="no-img-placeholder">
+                            <span>📷</span>
+                            <small>ไม่ได้แนบรูป</small>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-body" style="padding: 14px;">
+                    <h4 style="font-size: 1rem; margin-bottom: 4px; font-weight: 700;">{{ r_item['title'] }}</h4>
+                    <p class="location-tag" style="font-size: 0.82rem; margin-bottom: 6px;">📍 {{ r_item['faculty_location'] }}</p>
+                    <a href="{{ url_for('detail', item_id=r_item['id']) }}" class="btn-detail" style="padding: 6px 12px; font-size: 0.85rem;">ดูรายละเอียด →</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

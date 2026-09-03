@@ -161,33 +161,34 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // ระบบเมนูนำทางบนมือถือและแท็บเล็ต (Mobile & Tablet Navigation)
-    const navToggleBtn = document.getElementById("navToggleBtn");
-    const navLinks = document.getElementById("navLinks");
+    // ระบบเมนู 3 ขีด (Hamburger & User Dropdown Menu)
+    const navMenuBtn = document.getElementById("navMenuBtn");
+    const menuDropdown = document.getElementById("menuDropdown");
+    const menuDropdownWrapper = document.getElementById("menuDropdownWrapper");
 
-    if (navToggleBtn && navLinks) {
-        navToggleBtn.addEventListener("click", function (e) {
+    if (navMenuBtn && menuDropdown) {
+        navMenuBtn.addEventListener("click", function (e) {
             e.stopPropagation();
-            const isOpen = navLinks.classList.toggle("mobile-active");
-            navToggleBtn.classList.toggle("active", isOpen);
-            navToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+            const isOpen = menuDropdown.classList.toggle("show");
+            navMenuBtn.classList.toggle("active", isOpen);
+            navMenuBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
         });
 
         // ปิดเมนูอัตโนมัติเมื่อคลิกนอกเมนู
         document.addEventListener("click", function (e) {
-            if (!navLinks.contains(e.target) && !navToggleBtn.contains(e.target)) {
-                navLinks.classList.remove("mobile-active");
-                navToggleBtn.classList.remove("active");
-                navToggleBtn.setAttribute("aria-expanded", "false");
+            if (menuDropdownWrapper && !menuDropdownWrapper.contains(e.target)) {
+                menuDropdown.classList.remove("show");
+                navMenuBtn.classList.remove("active");
+                navMenuBtn.setAttribute("aria-expanded", "false");
             }
         });
 
-        // ปิดเมนูเมื่อเลือกลิงก์
-        navLinks.querySelectorAll("a").forEach(link => {
+        // ปิดเมนูเมื่อคลิกเลือกลิงก์ภายในเมนู
+        menuDropdown.querySelectorAll("a").forEach(link => {
             link.addEventListener("click", function () {
-                navLinks.classList.remove("mobile-active");
-                navToggleBtn.classList.remove("active");
-                navToggleBtn.setAttribute("aria-expanded", "false");
+                menuDropdown.classList.remove("show");
+                navMenuBtn.classList.remove("active");
+                navMenuBtn.setAttribute("aria-expanded", "false");
             });
         });
     }

@@ -18,30 +18,73 @@
                 <span class="logo-text">Lost & Found</span>
             </a>
 
-            <button type="button" class="nav-toggle-btn" id="navToggleBtn" aria-label="เมนูนำทาง" aria-expanded="false">
-                <span class="bar"></span>
-                <span class="bar"></span>
-                <span class="bar"></span>
-            </button>
-
-            <nav class="nav-links" id="navLinks">
-                <a href="{{ url_for('index') }}">หน้าแรก</a>
+            <!-- Right-side Navigation Actions -->
+            <div class="nav-actions">
+                <a href="{{ url_for('index') }}" class="nav-link-item">หน้าแรก</a>
                 
                 {% if session.get('user_id') %}
-                    {% if is_admin %}
-                        <a href="{{ url_for('admin_dashboard') }}" class="btn-admin-nav">👑 แผงควบคุม Admin</a>
-                    {% endif %}
                     <a href="{{ url_for('report') }}" class="btn-nav">+ แจ้งของหาย / พบของ</a>
-                    <a href="{{ url_for('my_posts') }}">โพสต์ของฉัน</a>
-                    <span class="user-badge" title="{{ session.get('email') }}">
-                        {% if is_admin %}👑{% else %}👤{% endif %} {{ session.get('fullname') }}
-                    </span>
-                    <a href="{{ url_for('logout') }}" class="btn-logout">ออกจากระบบ</a>
+                    
+                    <!-- กล่องปุ่มเมนู 3 ขีด (3-Line Hamburger & User Menu Dropdown) -->
+                    <div class="menu-dropdown-wrapper" id="menuDropdownWrapper">
+                        <button type="button" class="nav-menu-btn" id="navMenuBtn" aria-label="เมนูผู้ใช้งาน" aria-expanded="false" title="เมนูตัวเลือก">
+                            <span class="user-greeting">{% if is_admin %}👑{% else %}👤{% endif %} {{ session.get('fullname').split()[0] if session.get('fullname') else 'บัญชีของฉัน' }}</span>
+                            <div class="hamburger-bars">
+                                <span class="bar"></span>
+                                <span class="bar"></span>
+                                <span class="bar"></span>
+                            </div>
+                        </button>
+                        
+                        <!-- รายการเมนูภายใน 3 ขีด -->
+                        <div class="menu-dropdown" id="menuDropdown">
+                            <div class="dropdown-user-header">
+                                <div class="dropdown-avatar">{% if is_admin %}👑{% else %}👤{% endif %}</div>
+                                <div class="dropdown-user-info">
+                                    <div class="dropdown-name">{{ session.get('fullname') }}</div>
+                                    <div class="dropdown-email">{{ session.get('email') }}</div>
+                                    <span class="dropdown-role-badge">{% if is_admin %}👑 ผู้ดูแลระบบ (Admin){% else %}👤 สมาชิกมหิดล{% endif %}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="dropdown-divider"></div>
+
+                            <div class="dropdown-menu-list">
+                                <a href="{{ url_for('index') }}" class="dropdown-link-item mobile-only">
+                                    <span class="dropdown-icon">🏠</span>
+                                    <span>หน้าแรก</span>
+                                </a>
+                                <a href="{{ url_for('report') }}" class="dropdown-link-item mobile-only highlight-link">
+                                    <span class="dropdown-icon">➕</span>
+                                    <span>แจ้งของหาย / พบของ</span>
+                                </a>
+                                
+                                {% if is_admin %}
+                                    <a href="{{ url_for('admin_dashboard') }}" class="dropdown-link-item admin-link">
+                                        <span class="dropdown-icon">👑</span>
+                                        <span>แผงควบคุมระบบ (Admin)</span>
+                                    </a>
+                                {% endif %}
+
+                                <a href="{{ url_for('my_posts') }}" class="dropdown-link-item">
+                                    <span class="dropdown-icon">📋</span>
+                                    <span>โพสต์ของฉัน</span>
+                                </a>
+                                
+                                <div class="dropdown-divider"></div>
+                                
+                                <a href="{{ url_for('logout') }}" class="dropdown-link-item logout-link">
+                                    <span class="dropdown-icon">🚪</span>
+                                    <span>ออกจากระบบ</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 {% else %}
-                    <a href="{{ url_for('login') }}" class="btn-login">เข้าสู่ระบบ (เมลมหิดล)</a>
+                    <a href="{{ url_for('login') }}" class="btn-login">เข้าสู่ระบบ</a>
                     <a href="{{ url_for('register') }}" class="btn-register">สมัครสมาชิก</a>
                 {% endif %}
-            </nav>
+            </div>
         </div>
     </header>
 

@@ -315,9 +315,44 @@ def get_db_connection():
     raw_url = os.environ.get("DATABASE_URL") or DATABASE_URL
     clean_db_url = sanitize_database_url(raw_url)
     
-    if clean_db_url and HAS_PSYCOPG2:
-        try:
-            conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
+    if (raw_url or clean_db_url) and HAS_PSYCOPG2:
+        conn = None
+        # Attempt 1: Connect via explicit parameters (bypasses URL parsing issues with #, %, &)
+        effective_url = clean_db_url or raw_url
+        m = re.match(r'^(?:postgresql|postgres)://([^:]+):([^@]+)@([^:/]+)(?::(\d+))?/(.+)$', effective_url.strip())
+        if m:
+            user, pw, host, port_str, dbname_raw = m.groups()
+            port = int(port_str) if port_str else 5432
+            dbname = dbname_raw.split('?')[0]
+            if pw.startswith('[') and pw.endswith(']'):
+                pw = pw[1:-1]
+                
+            for test_pw in [pw, urllib.parse.unquote_plus(pw)]:
+                try:
+                    conn = psycopg2.connect(
+                        host=host,
+                        port=port,
+                        user=user,
+                        password=test_pw,
+                        dbname=dbname,
+                        sslmode="require",
+                        cursor_factory=DictCursor,
+                        connect_timeout=4
+                    )
+                    break
+                except Exception as ex:
+                    conn = None
+                    LAST_DB_ERROR = str(ex)
+
+        # Attempt 2: Fallback to DSN connection string
+        if not conn and clean_db_url:
+            try:
+                conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
+            except Exception as e:
+                LAST_DB_ERROR = str(e)
+                conn = None
+
+        if conn:
             try:
                 cursor = conn.cursor()
                 cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')")
@@ -330,9 +365,8 @@ def get_db_connection():
             CURRENT_DB_TYPE = "PostgreSQL (Cloud)"
             LAST_DB_ERROR = None
             return DBWrapper(conn, is_postgres=True)
-        except Exception as e:
-            LAST_DB_ERROR = str(e)
-            print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
+        else:
+            print(f"PostgreSQL connection failed ({LAST_DB_ERROR}), falling back to SQLite.")
     
     CURRENT_DB_TYPE = "SQLite (Temporary/Local)"
     # SQLite Fallback (Safe for Vercel /tmp)

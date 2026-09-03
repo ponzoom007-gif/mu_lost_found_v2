@@ -15,8 +15,8 @@
         <meta property="og:image" content="{{ detail_img | replace('http://', 'https://') }}">
         <meta property="og:image:secure_url" content="{{ detail_img | replace('http://', 'https://') }}">
     {% else %}
-        <meta property="og:image" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
-        <meta property="og:image:secure_url" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
+        <meta property="og:image" content="{{ url_for('static', filename='images/share-preview.jpg', _external=True) | replace('http://', 'https://') }}?v=3">
+        <meta property="og:image:secure_url" content="{{ url_for('static', filename='images/share-preview.jpg', _external=True) | replace('http://', 'https://') }}?v=3">
     {% endif %}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ item['title'] }} - MU Lost & Found">
@@ -24,7 +24,7 @@
     {% if item['item_image'] %}
         <meta name="twitter:image" content="{{ detail_img | replace('http://', 'https://') }}">
     {% else %}
-        <meta name="twitter:image" content="{{ url_for('static', filename='images/og-logo.jpg', _external=True) | replace('http://', 'https://') }}">
+        <meta name="twitter:image" content="{{ url_for('static', filename='images/share-preview.jpg', _external=True) | replace('http://', 'https://') }}?v=3">
     {% endif %}
 {% endblock %}
 

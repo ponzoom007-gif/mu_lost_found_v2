@@ -36,3 +36,4 @@
 - **Unregistered Account Prompt**: Distinct alert in login route guiding unregistered users to sign up.
 - **Feed Pagination**: 9 items per page with page navigation buttons and item counters.
 - **Database Connection**: Auto-heals Supabase pooler username (`postgres.<ref>`) and URL-encodes special characters in passwords.
+- **Cloud Storage Persistence**: Supabase Storage bucket `item-images` with verified public upload policy for permanent image storage.

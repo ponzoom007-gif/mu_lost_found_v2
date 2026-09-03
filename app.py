@@ -190,25 +190,6 @@ def sanitize_database_url(raw_url):
         
     return url
 
-def get_db_connection():
-    clean_db_url = sanitize_database_url(DATABASE_URL)
-    if clean_db_url and HAS_PSYCOPG2:
-        try:
-            conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
-            return DBWrapper(conn, is_postgres=True)
-        except Exception as e:
-            print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
-    
-    try:
-        conn = sqlite3.connect(DATABASE_PATH, timeout=4)
-        conn.row_factory = sqlite3.Row
-        return DBWrapper(conn, is_postgres=False)
-    except Exception as e:
-        print(f"SQLite connection failed ({e}), using in-memory database.")
-        conn = sqlite3.connect(":memory:")
-        conn.row_factory = sqlite3.Row
-        return DBWrapper(conn, is_postgres=False)
-
 USERS_SQL_PG = """
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -283,6 +264,57 @@ CREATE TABLE IF NOT EXISTS items (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 """
+
+def get_db_connection():
+    raw_url = os.environ.get("DATABASE_URL") or DATABASE_URL
+    clean_db_url = sanitize_database_url(raw_url)
+    
+    if clean_db_url and HAS_PSYCOPG2:
+        try:
+            conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')")
+                if not cursor.fetchone()[0]:
+                    cursor.execute(USERS_SQL_PG)
+                    cursor.execute(ITEMS_SQL_PG)
+                    conn.commit()
+            except Exception:
+                pass
+            return DBWrapper(conn, is_postgres=True)
+        except Exception as e:
+            print(f"PostgreSQL connection failed ({e}), falling back to SQLite.")
+    
+    # SQLite Fallback (Safe for Vercel /tmp)
+    target_db_path = "/tmp/database.db" if IS_VERCEL else DATABASE_PATH
+    try:
+        conn = sqlite3.connect(target_db_path, timeout=5)
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        if not cursor.fetchone():
+            cursor.executescript(USERS_SQL_SQLITE)
+            cursor.executescript(ITEMS_SQL_SQLITE)
+            cursor.execute(
+                "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
+            )
+            conn.commit()
+        return DBWrapper(conn, is_postgres=False)
+    except Exception as e:
+        print(f"SQLite file connection failed ({e}), using in-memory database.")
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.executescript(USERS_SQL_SQLITE)
+        cursor.executescript(ITEMS_SQL_SQLITE)
+        cursor.execute(
+            "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+            (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
+        )
+        conn.commit()
+        return DBWrapper(conn, is_postgres=False)
 
 def check_and_init_db():
     try:

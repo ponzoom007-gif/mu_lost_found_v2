@@ -21,24 +21,24 @@
 
             <!-- Desktop Navigation Actions -->
             <div class="nav-actions desktop-nav">
-                <a href="{{ url_for('index') }}" class="nav-link-item">🏠 หน้าแรก</a>
+                <a href="{{ url_for('index') }}" class="nav-link-item">หน้าแรก</a>
                 
                 {% if session.get('user_id') %}
                     <a href="{{ url_for('report') }}" class="btn-nav">+ แจ้งของหาย / พบของ</a>
                     
                     <div class="menu-dropdown-wrapper">
                         <button type="button" class="nav-menu-btn" id="desktopUserBtn" aria-label="เมนูผู้ใช้งาน">
-                            <span class="user-greeting">{% if is_admin %}👑{% else %}👤{% endif %} {{ session.get('fullname').split()[0] if session.get('fullname') else 'บัญชีของฉัน' }}</span>
+                            <span class="user-greeting">{{ session.get('fullname').split()[0] if session.get('fullname') else 'บัญชีของฉัน' }}</span>
                             <span class="dropdown-caret">▼</span>
                         </button>
                         
                         <div class="menu-dropdown" id="desktopDropdown">
                             <div class="dropdown-user-header">
-                                <div class="dropdown-avatar">{% if is_admin %}👑{% else %}👤{% endif %}</div>
+                                <div class="dropdown-avatar">{{ session.get('fullname')[0] if session.get('fullname') else 'U' }}</div>
                                 <div class="dropdown-user-info">
                                     <div class="dropdown-name">{{ session.get('fullname') }}</div>
                                     <div class="dropdown-email">{{ session.get('email') }}</div>
-                                    <span class="dropdown-role-badge">{% if is_admin %}👑 ผู้ดูแลระบบ (Admin){% else %}👤 สมาชิกมหิดล{% endif %}</span>
+                                    <span class="dropdown-role-badge">{% if is_admin %}ผู้ดูแลระบบ (Admin){% else %}สมาชิกมหิดล{% endif %}</span>
                                 </div>
                             </div>
                             
@@ -47,20 +47,17 @@
                             <div class="dropdown-menu-list">
                                 {% if is_admin %}
                                     <a href="{{ url_for('admin_dashboard') }}" class="dropdown-link-item admin-link">
-                                        <span class="dropdown-icon">👑</span>
                                         <span>แผงควบคุมระบบ (Admin)</span>
                                     </a>
                                 {% endif %}
 
                                 <a href="{{ url_for('my_posts') }}" class="dropdown-link-item">
-                                    <span class="dropdown-icon">📦</span>
                                     <span>โพสต์ของฉัน</span>
                                 </a>
                                 
                                 <div class="dropdown-divider"></div>
                                 
                                 <a href="{{ url_for('logout') }}" class="dropdown-link-item logout-link">
-                                    <span class="dropdown-icon">🚪</span>
                                     <span>ออกจากระบบ</span>
                                 </a>
                             </div>
@@ -94,11 +91,11 @@
 
         {% if session.get('user_id') %}
             <div class="drawer-user-card">
-                <div class="drawer-avatar">{% if is_admin %}👑{% else %}👤{% endif %}</div>
+                <div class="drawer-avatar">{{ session.get('fullname')[0] if session.get('fullname') else 'U' }}</div>
                 <div class="drawer-user-details">
                     <div class="drawer-user-name">{{ session.get('fullname') }}</div>
                     <div class="drawer-user-email">{{ session.get('email') }}</div>
-                    <span class="drawer-badge">{% if is_admin %}👑 ผู้ดูแลระบบ (Admin){% else %}👤 สมาชิกมหิดล ({{ session.get('faculty') or 'นักศึกษา' }}){% endif %}</span>
+                    <span class="drawer-badge">{% if is_admin %}ผู้ดูแลระบบ (Admin){% else %}สมาชิกมหิดล ({{ session.get('faculty') or 'นักศึกษา' }}){% endif %}</span>
                 </div>
             </div>
         {% else %}
@@ -113,23 +110,19 @@
 
         <div class="drawer-links">
             <a href="{{ url_for('index') }}" class="drawer-link-item">
-                <span class="drawer-icon">🏠</span>
                 <span>หน้าแรก</span>
             </a>
             
             {% if session.get('user_id') %}
                 <a href="{{ url_for('report') }}" class="drawer-link-item highlight-link">
-                    <span class="drawer-icon">➕</span>
-                    <span>แจ้งของหาย / พบของ</span>
+                    <span>+ แจ้งของหาย / พบของ</span>
                 </a>
                 <a href="{{ url_for('my_posts') }}" class="drawer-link-item">
-                    <span class="drawer-icon">📦</span>
                     <span>โพสต์ของฉัน</span>
                 </a>
                 
                 {% if is_admin %}
                     <a href="{{ url_for('admin_dashboard') }}" class="drawer-link-item admin-link">
-                        <span class="drawer-icon">👑</span>
                         <span>แผงควบคุมระบบ (Admin)</span>
                     </a>
                 {% endif %}
@@ -137,7 +130,6 @@
                 <div class="drawer-divider"></div>
                 
                 <a href="{{ url_for('logout') }}" class="drawer-link-item logout-link">
-                    <span class="drawer-icon">🚪</span>
                     <span>ออกจากระบบ</span>
                 </a>
             {% endif %}
@@ -150,7 +142,6 @@
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }}">
-                        <span class="alert-icon">{% if category == 'success' %}✅{% elif category == 'danger' %}⚠️{% elif category == 'warning' %}🔔{% else %}ℹ️{% endif %}</span>
                         <span>{{ message }}</span>
                     </div>
                 {% endfor %}
@@ -163,22 +154,22 @@
     <!-- Mobile Bottom Navigation Bar (App-style) -->
     <nav class="mobile-bottom-nav">
         <a href="{{ url_for('index') }}" class="bottom-nav-item {% if request.endpoint == 'index' %}active{% endif %}">
-            <span class="bottom-icon">🏠</span>
+            <svg class="bottom-nav-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span class="bottom-label">หน้าแรก</span>
         </a>
         <a href="{{ url_for('report') if session.get('user_id') else url_for('login') }}" class="bottom-nav-item center-fab">
             <div class="fab-circle">
-                <span>➕</span>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </div>
             <span class="bottom-label">แจ้งของ</span>
         </a>
         <a href="{{ url_for('my_posts') if session.get('user_id') else url_for('login') }}" class="bottom-nav-item {% if request.endpoint == 'my_posts' %}active{% endif %}">
-            <span class="bottom-icon">📦</span>
+            <svg class="bottom-nav-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>
             <span class="bottom-label">ของฉัน</span>
         </a>
         <button type="button" class="bottom-nav-item" id="mobileBottomProfileBtn">
-            <span class="bottom-icon">{% if is_admin %}👑{% else %}👤{% endif %}</span>
-            <span class="bottom-label">{% if session.get('user_id') %}โปรไฟล์{% else %}บัญชี{% endif %}</span>
+            <svg class="bottom-nav-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span class="bottom-label">{% if session.get('user_id') %}บัญชี{% else %}เข้าสู่ระบบ{% endif %}</span>
         </button>
     </nav>
 

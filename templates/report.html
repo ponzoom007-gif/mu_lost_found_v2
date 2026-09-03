@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="form-card">
-    <h2>📝 ลงประกาศตามหา / แจ้งเก็บของได้</h2>
+    <h2>ลงประกาศแจ้งของหาย / พบของ</h2>
     <p style="color: var(--text-muted); margin-bottom: 24px;">ข้อมูลจะถูกเผยแพร่ในระบบสำหรับนักศึกษาและบุคลากรมหาวิทยาลัยมหิดล</p>
 
     <form action="{{ url_for('report') }}" method="POST" enctype="multipart/form-data">
@@ -11,10 +11,10 @@
             <label>เลือกประเภทการประกาศ *</label>
             <div class="type-toggle-group">
                 <label class="type-toggle-card selected-found" id="label_found">
-                    <input type="radio" name="item_type" value="found" checked> 🟢 เก็บของได้ (Found)
+                    <input type="radio" name="item_type" value="found" checked> เก็บของได้ (Found)
                 </label>
                 <label class="type-toggle-card" id="label_lost">
-                    <input type="radio" name="item_type" value="lost"> 🔴 ทำของหาย (Lost)
+                    <input type="radio" name="item_type" value="lost"> ทำของหาย (Lost)
                 </label>
             </div>
         </div>
@@ -50,12 +50,12 @@
 
         <div class="form-row">
             <div class="form-group">
-                <label for="incident_date">📅 วันที่เกิดเหตุ *</label>
+                <label for="incident_date">วันที่เกิดเหตุ *</label>
                 <input type="date" id="incident_date" name="incident_date" required>
             </div>
 
             <div class="form-group">
-                <label for="incident_time">⏰ เวลาโดยประมาณ *</label>
+                <label for="incident_time">เวลาโดยประมาณ *</label>
                 <input type="time" id="incident_time" name="incident_time" required>
             </div>
         </div>
@@ -67,21 +67,21 @@
 
         <!-- กล่องยืนยันความเป็นเจ้าของ (Anti-Spoofing) -->
         <div class="form-group" style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 16px; border-radius: var(--radius-md);">
-            <label id="verification_label" for="verification_question" style="color: #166534; font-weight: 700;">🛡️ คำถามยืนยันความเป็นเจ้าของ (Anti-Spoofing Question)</label>
+            <label id="verification_label" for="verification_question" style="color: #166534; font-weight: 700;">คำถามยืนยันความเป็นเจ้าของ (Anti-Spoofing Question)</label>
             <input type="text" id="verification_question" name="verification_question" placeholder="เช่น 'กระเป๋าสตางค์มีบัตรอะไรอยู่ข้างในบ้าง?' หรือ 'เคสข้างหลังติดสติ๊กเกอร์ลายอะไร?'">
             <small id="verification_hint" style="color: #15803D; font-size: 0.85rem; margin-top: 5px; display: block;">* เจ้าของที่มาขอรับของจะต้องตอบคำถามนี้ให้ถูกต้อง เพื่อป้องกันมิจฉาชีพสวมรอย</small>
         </div>
 
         <div class="form-row">
             <div class="form-group">
-                <label for="item_image">📷 รูปถ่ายสิ่งของ (สูงสุด 5MB)</label>
+                <label for="item_image">รูปถ่ายสิ่งของ (สูงสุด 5MB)</label>
                 <input type="file" id="item_image" name="item_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
                 <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
                 <div class="image-preview-box" id="preview_item_image" style="display: none;"></div>
             </div>
 
             <div class="form-group">
-                <label for="found_spot_image">📍 รูปถ่ายจุดที่พบ / ทำหาย (สูงสุด 5MB)</label>
+                <label for="found_spot_image">รูปถ่ายจุดที่เกิดเหตุ (สูงสุด 5MB)</label>
                 <input type="file" id="found_spot_image" name="found_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
                 <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
                 <div class="image-preview-box" id="preview_found_spot_image" style="display: none;"></div>
@@ -96,11 +96,11 @@
                 <div class="radio-group" style="display: flex; flex-direction: column; gap: 8px;">
                     <label style="font-weight: 500; cursor: pointer;">
                         <input type="radio" name="custody_type" value="dropped" id="custody_dropped" checked> 
-                        🏢 ฝากไว้ที่จุดรับฝาก / หน่วยงาน (เช่น ป้อมยามวิศวะ, เคาน์เตอร์ MLC, หอสมุด)
+                        ฝากไว้ที่จุดรับฝาก / หน่วยงาน (เช่น ป้อมยามวิศวะ, เคาน์เตอร์ MLC, หอสมุด)
                     </label>
                     <label style="font-weight: 500; cursor: pointer;">
                         <input type="radio" name="custody_type" value="keep_self" id="custody_keep"> 
-                        🙋‍♂️ เก็บไว้กับตัวเอง (รอเจ้าของติดต่อเพื่อนัดรับ)
+                        เก็บไว้กับตัวเอง (รอเจ้าของติดต่อเพื่อนัดรับ)
                     </label>
                 </div>
             </div>
@@ -111,7 +111,7 @@
                     <input type="text" id="drop_location_detail" name="drop_location_detail" placeholder="เช่น ป้อมยามประตู 1 คณะวิศวกรรมศาสตร์ หรือเคาน์เตอร์ชั้น 1 MLC">
                 </div>
                 <div class="form-group">
-                    <label for="drop_spot_image">📸 รูปถ่ายจุดที่ฝากไว้ / ใบรับฝาก (สูงสุด 5MB)</label>
+                    <label for="drop_spot_image">รูปถ่ายจุดที่ฝากไว้ / ใบรับฝาก (สูงสุด 5MB)</label>
                     <input type="file" id="drop_spot_image" name="drop_spot_image" accept="image/png, image/jpeg, image/webp, image/heic, image/heif, image/jpg" class="image-file-input">
                     <small class="form-help-text">รองรับ PNG, JPG, WEBP, HEIC (iPhone) สูงสุด 5 MB</small>
                     <div class="image-preview-box" id="preview_drop_spot_image" style="display: none;"></div>

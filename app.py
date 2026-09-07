@@ -316,6 +316,22 @@ def csrf_token():
 app.jinja_env.globals["csrf_token"] = csrf_token
 
 
+def clear_login_attempts(email):
+    """Clear the counters after a successful login so valid users are not locked out."""
+    conn = get_db_connection()
+    try:
+        identities = (
+            "email:" + (email or "").strip().lower(),
+            "ip:" + (request.remote_addr or "unknown"),
+        )
+        keys = [hashlib.sha256(identity.encode()).hexdigest() for identity in identities]
+        for key in keys:
+            conn.execute("DELETE FROM login_attempts WHERE attempt_key = ?", (key,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @app.before_request
 def protect_requests():
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -592,6 +608,7 @@ def login():
             except Exception:
                 pass
             if is_match:
+                clear_login_attempts(email)
                 session.clear()
                 session["user_id"] = user_dict["id"]
                 session["email"] = user_dict["email"]
@@ -1258,4 +1275,3 @@ def db_status():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(debug=False, host="0.0.0.0", port=port)
-

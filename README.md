@@ -58,6 +58,6 @@ node --check static/js/script.js
 
 ชุดทดสอบใช้ SQLite ใน temporary directory และจำลอง Google/Storage ไม่โหลดค่าจริงจาก `.env` และไม่ติดต่อฐาน production
 
-CI ใน `.github/workflows/tests.yml` เตรียมรันชุดเดียวกันกับ SQLite และ PostgreSQL service แยกสำหรับทดสอบ เมื่อต้องการทดสอบ PostgreSQL ในเครื่อง ตั้ง `TEST_POSTGRES_URL` ไปยังฐาน `mu_lost_found_test` บน localhost เท่านั้น ชุดทดสอบสร้าง schema สุ่มของตัวเองและลบเฉพาะ schema นั้นหลังจบ
+แม่แบบ CI ใน `ci/github-actions-tests.yml` เตรียมรันชุดเดียวกันกับ SQLite และ PostgreSQL service แยกสำหรับทดสอบ ยังไม่เปิดใช้งานอัตโนมัติ เพราะสิทธิ์ GitHub ปัจจุบันไม่อนุญาตให้เพิ่ม workflow ผู้ดูแลสามารถนำไปไว้ที่ `.github/workflows/tests.yml` เมื่อมีสิทธิ์ที่เหมาะสม เมื่อต้องการทดสอบ PostgreSQL ในเครื่อง ตั้ง `TEST_POSTGRES_URL` ไปยังฐาน `mu_lost_found_test` บน localhost เท่านั้น ชุดทดสอบสร้าง schema สุ่มของตัวเองและลบเฉพาะ schema นั้นหลังจบ
 
 การทดสอบ SQLite ผ่านในเครื่องไม่ได้ยืนยันว่า PostgreSQL/Google/Supabase ที่ deploy อยู่พร้อมใช้งาน ต้องตรวจ staging เพิ่มก่อนปล่อยจริง

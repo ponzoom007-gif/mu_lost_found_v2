@@ -99,79 +99,17 @@ document.addEventListener("DOMContentLoaded", function () {
         timeInput.value = `${hours}:${minutes}`;
     }
 
-    // ----------------- LIVE FILTER & SEARCH ----------------- //
-    const searchInput = document.getElementById("liveSearchInput");
-    const facultyFilter = document.getElementById("liveFacultyFilter");
-    const typeFilter = document.getElementById("liveTypeFilter");
-    const dateFilter = document.getElementById("liveDateFilter");
-    const resetBtn = document.getElementById("btnResetFilter");
-    const noResultsMsg = document.getElementById("noLiveResults");
-    const itemCards = document.querySelectorAll("#itemsContainer .item-card");
-    const categoryChips = document.querySelectorAll(".category-chip");
-    let activeCategory = "";
-
-    function applyLiveFilter() {
-        const searchText = searchInput ? searchInput.value.toLowerCase().trim() : "";
-        const selectedFaculty = facultyFilter ? facultyFilter.value : "";
-        const selectedType = typeFilter ? typeFilter.value : "";
-        const selectedDate = dateFilter ? dateFilter.value : "";
-
-        let visibleCount = 0;
-
-        itemCards.forEach(card => {
-            const title = card.getAttribute("data-title") || "";
-            const desc = card.getAttribute("data-desc") || "";
-            const location = card.getAttribute("data-location") || "";
-            const category = card.getAttribute("data-category") || "";
-            const type = card.getAttribute("data-type") || "";
-            const itemDate = card.getAttribute("data-date") || "";
-
-            const matchSearch = searchText === "" || title.includes(searchText) || desc.includes(searchText);
-            const matchFaculty = selectedFaculty === "" || location === selectedFaculty;
-            const matchCategory = activeCategory === "" || category === activeCategory;
-            const matchType = selectedType === "" || type === selectedType;
-            const matchDate = selectedDate === "" || (itemDate && itemDate >= selectedDate);
-
-            if (matchSearch && matchFaculty && matchCategory && matchType && matchDate) {
-                card.style.display = "flex";
-                visibleCount++;
-            } else {
-                card.style.display = "none";
-            }
-        });
-
-        if (noResultsMsg) {
-            noResultsMsg.style.display = (visibleCount === 0 && itemCards.length > 0) ? "block" : "none";
-        }
-    }
-
-    if (categoryChips.length > 0) {
-        categoryChips.forEach(chip => {
-            chip.addEventListener("click", function () {
-                categoryChips.forEach(c => c.classList.remove("active"));
-                this.classList.add("active");
-                activeCategory = this.getAttribute("data-category") || "";
-                applyLiveFilter();
+    // Search on the server so results include every page.
+    const filterForm = document.getElementById("serverFilterForm");
+    if (filterForm) {
+        document.querySelectorAll(".category-chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+                document.getElementById("categoryFilter").value = chip.dataset.category || "";
+                filterForm.requestSubmit();
             });
         });
-    }
-
-    if (searchInput) searchInput.addEventListener("input", applyLiveFilter);
-    if (facultyFilter) facultyFilter.addEventListener("change", applyLiveFilter);
-    if (typeFilter) typeFilter.addEventListener("change", applyLiveFilter);
-    if (dateFilter) dateFilter.addEventListener("change", applyLiveFilter);
-
-    if (resetBtn) {
-        resetBtn.addEventListener("click", function () {
-            if (searchInput) searchInput.value = "";
-            if (facultyFilter) facultyFilter.value = "";
-            if (typeFilter) typeFilter.value = "";
-            if (dateFilter) dateFilter.value = "";
-            activeCategory = "";
-            categoryChips.forEach((c, idx) => {
-                c.classList.toggle("active", idx === 0);
-            });
-            applyLiveFilter();
+        document.getElementById("btnResetFilter").addEventListener("click", () => {
+            window.location.assign(window.location.pathname);
         });
     }
 
@@ -261,7 +199,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // ----------------- 3. INSTANT IMAGE PREVIEW & FILE VALIDATION ----------------- //
     const imageInputs = document.querySelectorAll(".image-file-input, input[type='file']");
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-    const ALLOWED_EXTS = ["png", "jpg", "jpeg", "webp", "heic", "heif", "jfif"];
+    const ALLOWED_EXTS = ["png", "jpg", "jpeg", "webp", "jfif"];
 
     imageInputs.forEach(input => {
         input.addEventListener("change", function () {
@@ -290,7 +228,7 @@ document.addEventListener("DOMContentLoaded", function () {
             // Check extension
             const ext = file.name.split('.').pop().toLowerCase();
             if (!ALLOWED_EXTS.includes(ext)) {
-                alert(`⚠️ ชนิดไฟล์ .${ext} ไม่ได้รับการรองรับ\nระบบรองรับเฉพาะรูปภาพสกุล PNG, JPG, JPEG, WEBP และ HEIC`);
+                alert(`⚠️ ชนิดไฟล์ .${ext} ไม่ได้รับการรองรับ\nระบบรองรับเฉพาะรูปภาพสกุล PNG, JPG, JPEG, WEBP`);
                 this.value = "";
                 if (previewBox) {
                     previewBox.style.display = "none";

@@ -7,8 +7,19 @@ import urllib.parse
 import urllib.error
 import json
 import math
+import secrets
+import hmac
+import time
+import hashlib
+import io
+import warnings
+from PIL import Image, ImageOps, UnidentifiedImageError
+from werkzeug.datastructures import FileStorage
+from werkzeug.exceptions import HTTPException
+from datetime import datetime
+import click
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, g, abort, has_request_context
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Try loading .env automatically if available
@@ -38,17 +49,8 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 
 # Vercel Serverless environment detection & read-only filesystem handling
 IS_VERCEL = os.environ.get("VERCEL") == "1" or os.environ.get("NOW_REGION") is not None
-if IS_VERCEL and not DATABASE_URL:
-    DATABASE_PATH = "/tmp/database.db"
-    bundled_db = os.path.join(BASE_DIR, "database.db")
-    if not os.path.exists(DATABASE_PATH) and os.path.exists(bundled_db):
-        try:
-            import shutil
-            shutil.copy2(bundled_db, DATABASE_PATH)
-        except Exception:
-            pass
-else:
-    DATABASE_PATH = os.path.join(BASE_DIR, "database.db")
+PRODUCTION = os.environ.get("APP_ENV", "production" if IS_VERCEL or os.environ.get("RAILWAY_ENVIRONMENT") or DATABASE_URL else "development") == "production"
+DATABASE_PATH = os.environ.get("SQLITE_PATH", os.path.join(BASE_DIR, "database.db"))
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
@@ -68,32 +70,17 @@ app = Flask(
 # Enable ProxyFix to properly forward HTTPS scheme and host headers from Vercel/Railway
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 handler = app  # WSGI Handler export for Vercel
-app.secret_key = os.environ.get("SECRET_KEY", "mu_lost_and_found_secure_production_key_2026")
+app.secret_key = os.environ.get("SECRET_KEY")
+if PRODUCTION and not app.secret_key:
+    raise RuntimeError("SECRET_KEY must be configured in production")
+app.secret_key = app.secret_key or secrets.token_hex(32)
+app.config.update(PRODUCTION=PRODUCTION, DATABASE_URL=DATABASE_URL, DATABASE_PATH=DATABASE_PATH,
+                  SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=PRODUCTION)
 
 # 1. จำกัดขนาดไฟล์อัปโหลดไม่เกิน 16 MB รองรับภาพถ่ายความละเอียดสูงจากสมาร์ตโฟนหลายภาพ
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 Megabytes
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "heic", "heif", "jfif"}
-ALLOWED_MIME_TYPES = {
-    "image/png", "image/jpeg", "image/pjpeg", "image/webp",
-    "image/jpg", "image/x-png", "image/jfif", "image/heic", "image/heif",
-    "image/heic-sequence", "image/heif-sequence", "application/octet-stream"
-}
-
-@app.errorhandler(413)
-def request_entity_too_large(error):
-    flash("ขนาดไฟล์รูปภาพรวมเกินขีดจำกัด (สูงสุดไม่เกิน 16 MB) กรุณาลดขนาดไฟล์หรือเลือกภาพอื่น", "danger")
-    return redirect(request.referrer or url_for("index"))
-
-# Safe upload directory creation on read-only serverless environments
-try:
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-except Exception:
-    app.config["UPLOAD_FOLDER"] = "/tmp/uploads"
-    try:
-        os.makedirs("/tmp/uploads", exist_ok=True)
-    except Exception:
-        pass
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Regex ตรวจสอบโดเมนอีเมลมหิดลเท่านั้น
 MAHIDOL_EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@([a-zA-Z0-9-]+\.)*mahidol\.(ac\.th|edu)$"
@@ -154,15 +141,15 @@ CATEGORIES = [
     "อื่นๆ"
 ]
 
-ADMIN_EMAILS = {
-    "ponpong.bum@student.mahidol.ac.th"
-}
-
 def is_admin():
     if "user_id" not in session:
         return False
-    email = str(session.get("email") or "").lower().strip()
-    return email in ADMIN_EMAILS or session.get("is_admin") == 1
+    conn = get_db_connection()
+    try:
+        user = conn.execute("SELECT is_admin FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        return bool(user and user["is_admin"] == 1)
+    finally:
+        conn.close()
 
 @app.template_filter("image_url")
 def image_url_filter(filename):
@@ -200,16 +187,19 @@ class DBWrapper:
     def __init__(self, raw_conn, is_postgres=False):
         self.conn = raw_conn
         self.is_postgres = is_postgres
+        self.closed = False
 
     def execute(self, sql, params=()):
-        if self.is_postgres:
-            # Convert SQLite placeholder '?' to PostgreSQL '%s'
-            sql = sql.replace("?", "%s")
-            cursor = self.conn.cursor()
-            cursor.execute(sql, params)
-            return cursor
-        else:
+        try:
+            if self.is_postgres:
+                cursor = self.conn.cursor()
+                cursor.execute(sql.replace("?", "%s"), params)
+                return cursor
             return self.conn.execute(sql, params)
+        except Exception as error:
+            if isinstance(error, sqlite3.OperationalError) or (HAS_PSYCOPG2 and isinstance(error, (psycopg2.OperationalError, psycopg2.InterfaceError))):
+                raise DatabaseUnavailable() from None
+            raise
 
     def executescript(self, sql_script):
         if self.is_postgres:
@@ -220,316 +210,149 @@ class DBWrapper:
             return self.conn.executescript(sql_script)
 
     def commit(self):
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception as error:
+            if isinstance(error, sqlite3.OperationalError) or (HAS_PSYCOPG2 and isinstance(error, (psycopg2.OperationalError, psycopg2.InterfaceError))):
+                raise DatabaseUnavailable() from None
+            raise
+        if has_request_context():
+            g.uploads = []
+            for filename in g.pop("pending_image_deletes", []):
+                remove_image_file(filename, immediate=True)
 
     def close(self):
-        self.conn.close()
+        if not self.closed:
+            self.conn.close()
+            self.closed = True
 
-DEFAULT_ADMIN_EMAIL = "ponpong.bum@student.mahidol.ac.th"
-DEFAULT_ADMIN_PW_HASH = generate_password_hash("Pponmahidol69&", method="pbkdf2:sha256")
+class DatabaseUnavailable(Exception):
+    pass
 
-def sanitize_database_url(raw_url):
-    if not raw_url:
-        return None
-    url = raw_url.strip()
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
-    
-    # Strip accidental brackets around password e.g. postgres:[password]@...
-    url = re.sub(r':\[(.*?)\]@', r':\1@', url)
-    
-    # Auto-convert Direct Supabase host (db.<ref>.supabase.co:5432 which is IPv6-only) to IPv4 Pooler
-    direct_match = re.search(r'@db\.([a-z0-9]+)\.supabase\.co(?::\d+)?/(.+)$', url)
-    if direct_match:
-        ref = direct_match.group(1)
-        db_name = direct_match.group(2).split('?')[0]
-        m = re.match(r'^(postgresql://)([^:]+):([^@]+)@', url)
-        if m:
-            prefix, user, pw = m.groups()
-            encoded_pw = urllib.parse.quote_plus(urllib.parse.unquote_plus(pw))
-            url = f"postgresql://postgres.{ref}:{encoded_pw}@aws-0-ap-southeast-1.pooler.supabase.com:6543/{db_name}"
-
-    # Extract Supabase project ref if available
-    supabase_ref = None
-    supa_url_env = os.environ.get("SUPABASE_URL") or SUPABASE_URL
-    if supa_url_env:
-        ref_match = re.search(r'https?://([^.]+)\.supabase\.co', supa_url_env)
-        if ref_match:
-            supabase_ref = ref_match.group(1)
-            
-    m = re.match(r'^(postgresql://)([^:]+):([^@]+)@(.+)$', url)
-    if m:
-        prefix, user, pw, host_part = m.groups()
-        # Auto-complete username to postgres.<ref> if connecting to Supabase pooler with plain postgres
-        if user == "postgres" and "pooler.supabase.com" in host_part and supabase_ref:
-            user = f"postgres.{supabase_ref}"
-            
-        encoded_pw = urllib.parse.quote_plus(urllib.parse.unquote_plus(pw))
-        url = f"{prefix}{user}:{encoded_pw}@{host_part}"
-
-    # Ensure sslmode=require for cloud PostgreSQL
-    if "sslmode=" not in url and "localhost" not in url and "127.0.0.1" not in url:
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}sslmode=require"
-        
-    return url
-
-USERS_SQL_PG = """
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    fullname VARCHAR(255) NOT NULL,
-    faculty VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    contact_phone VARCHAR(50),
-    is_admin INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-ITEMS_SQL_PG = """
-CREATE TABLE IF NOT EXISTS items (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    item_type VARCHAR(20) NOT NULL,
-    faculty_location VARCHAR(255) NOT NULL,
-    incident_date VARCHAR(50) NOT NULL,
-    incident_time VARCHAR(50) NOT NULL,
-    description TEXT,
-    verification_question TEXT,
-    item_image VARCHAR(500),
-    found_spot_image VARCHAR(500),
-    custody_type VARCHAR(50) DEFAULT 'keep_self',
-    drop_location_detail TEXT,
-    drop_spot_image VARCHAR(500),
-    contact_info VARCHAR(255),
-    views_count INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-USERS_SQL_SQLITE = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    fullname TEXT NOT NULL,
-    faculty TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    contact_phone TEXT,
-    is_admin INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-ITEMS_SQL_SQLITE = """
-CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    item_type TEXT NOT NULL,
-    faculty_location TEXT NOT NULL,
-    incident_date TEXT NOT NULL,
-    incident_time TEXT NOT NULL,
-    description TEXT,
-    verification_question TEXT,
-    item_image TEXT,
-    found_spot_image TEXT,
-    custody_type TEXT DEFAULT 'keep_self',
-    drop_location_detail TEXT,
-    drop_spot_image TEXT,
-    contact_info TEXT,
-    views_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-"""
-
-LAST_DB_ERROR = None
-CURRENT_DB_TYPE = "SQLite (Local)"
 
 def get_db_connection():
-    global LAST_DB_ERROR, CURRENT_DB_TYPE
-    raw_url = os.environ.get("DATABASE_URL") or DATABASE_URL
-    clean_db_url = sanitize_database_url(raw_url)
-    
-    if (raw_url or clean_db_url) and HAS_PSYCOPG2:
-        conn = None
-        # Attempt 1: Connect via explicit parameters (bypasses URL parsing issues with #, %, &)
-        effective_url = clean_db_url or raw_url
-        m = re.match(r'^(?:postgresql|postgres)://([^:]+):([^@]+)@([^:/]+)(?::(\d+))?/(.+)$', effective_url.strip())
-        if m:
-            user, pw, host, port_str, dbname_raw = m.groups()
-            port = int(port_str) if port_str else 5432
-            dbname = dbname_raw.split('?')[0]
-            if pw.startswith('[') and pw.endswith(']'):
-                pw = pw[1:-1]
-                
-            for test_pw in [pw, urllib.parse.unquote_plus(pw)]:
-                try:
-                    conn = psycopg2.connect(
-                        host=host,
-                        port=port,
-                        user=user,
-                        password=test_pw,
-                        dbname=dbname,
-                        sslmode="require",
-                        cursor_factory=DictCursor,
-                        connect_timeout=4
-                    )
-                    break
-                except Exception as ex:
-                    conn = None
-                    LAST_DB_ERROR = str(ex)
-
-        # Attempt 2: Fallback to DSN connection string
-        if not conn and clean_db_url:
-            try:
-                conn = psycopg2.connect(clean_db_url, cursor_factory=DictCursor, connect_timeout=4)
-            except Exception as e:
-                LAST_DB_ERROR = str(e)
-                conn = None
-
-        if conn:
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')")
-                if not cursor.fetchone()[0]:
-                    cursor.execute(USERS_SQL_PG)
-                    cursor.execute(ITEMS_SQL_PG)
-                    conn.commit()
-            except Exception:
-                pass
-            CURRENT_DB_TYPE = "PostgreSQL (Cloud)"
-            LAST_DB_ERROR = None
-            return DBWrapper(conn, is_postgres=True)
-        else:
-            print(f"PostgreSQL connection failed ({LAST_DB_ERROR}), falling back to SQLite.")
-    
-    CURRENT_DB_TYPE = "SQLite (Temporary/Local)"
-    # SQLite Fallback (Safe for Vercel /tmp)
-    target_db_path = "/tmp/database.db" if IS_VERCEL else DATABASE_PATH
+    """Never switch data stores when the configured database is unavailable."""
     try:
-        conn = sqlite3.connect(target_db_path, timeout=5)
-        conn.row_factory = sqlite3.Row
-        
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-        if not cursor.fetchone():
-            cursor.executescript(USERS_SQL_SQLITE)
-            cursor.executescript(ITEMS_SQL_SQLITE)
-            cursor.execute(
-                "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-                (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
-            )
-            conn.commit()
-        return DBWrapper(conn, is_postgres=False)
-    except Exception as e:
-        print(f"SQLite file connection failed ({e}), using in-memory database.")
-        conn = sqlite3.connect(":memory:")
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.executescript(USERS_SQL_SQLITE)
-        cursor.executescript(ITEMS_SQL_SQLITE)
-        cursor.execute(
-            "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-            (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
-        )
-        conn.commit()
-        return DBWrapper(conn, is_postgres=False)
-
-def check_and_init_db():
-    try:
-        conn = get_db_connection()
-        if conn.is_postgres:
-            conn.execute(USERS_SQL_PG)
-            conn.execute(ITEMS_SQL_PG)
-
-            # Ensure primary admin account exists and has the requested password
-            admin_user = conn.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_EMAIL,)).fetchone()
-            if admin_user:
-                conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, DEFAULT_ADMIN_EMAIL))
-            else:
-                conn.execute(
-                    "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-                    (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
-                )
-
-            for email in ADMIN_EMAILS:
-                conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
-            conn.commit()
-
-            # Auto-configure Supabase Storage Bucket and Public Access Policy
-            try:
-                conn.execute("""
-                    INSERT INTO storage.buckets (id, name, public) 
-                    VALUES ('item-images', 'item-images', true)
-                    ON CONFLICT (id) DO UPDATE SET public = true;
-                """)
-                conn.commit()
-            except Exception as se:
-                print(f"Storage bucket init notice: {se}")
-
-            try:
-                conn.execute("""
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM pg_policies 
-                            WHERE tablename = 'objects' AND policyname = 'Public Access for item-images'
-                        ) THEN
-                            CREATE POLICY "Public Access for item-images" ON storage.objects
-                            FOR ALL
-                            USING (bucket_id = 'item-images')
-                            WITH CHECK (bucket_id = 'item-images');
-                        END IF;
-                    END
-                    $$;
-                """)
-                conn.commit()
-            except Exception as se:
-                print(f"Storage policy init notice: {se}")
-
-            print("PostgreSQL tables, Storage policies, and Admin account ready.")
+        if app.config["PRODUCTION"] or app.config.get("DATABASE_URL"):
+            if not HAS_PSYCOPG2 or not app.config.get("DATABASE_URL"):
+                raise DatabaseUnavailable()
+            raw = psycopg2.connect(app.config["DATABASE_URL"], sslmode="require",
+                                   cursor_factory=DictCursor, connect_timeout=4)
+            conn = DBWrapper(raw, True)
         else:
-            conn.execute(USERS_SQL_SQLITE)
-            conn.execute(ITEMS_SQL_SQLITE)
-            try:
-                cursor = conn.execute("PRAGMA table_info(items)")
-                item_cols = [col[1] for col in cursor.fetchall()]
-                if "views_count" not in item_cols:
-                    conn.execute("ALTER TABLE items ADD COLUMN views_count INTEGER DEFAULT 0")
+            raw = sqlite3.connect(app.config["DATABASE_PATH"], timeout=10)
+            raw.row_factory = sqlite3.Row
+            raw.execute("PRAGMA foreign_keys = ON")
+            conn = DBWrapper(raw)
+        if has_request_context():
+            g.setdefault("connections", []).append(conn)
+        return conn
+    except Exception:
+        raise DatabaseUnavailable() from None
 
-                cursor = conn.execute("PRAGMA table_info(users)")
-                user_cols = [col[1] for col in cursor.fetchall()]
-                if "is_admin" not in user_cols:
-                    conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
-            except Exception:
-                pass
 
-            # Ensure primary admin in SQLite
-            admin_user = conn.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_EMAIL,)).fetchone()
-            if admin_user:
-                conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, DEFAULT_ADMIN_EMAIL))
-            else:
-                conn.execute(
-                    "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-                    (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
-                )
-
-            for email in ADMIN_EMAILS:
-                conn.execute("UPDATE users SET is_admin = 1 WHERE LOWER(email) = LOWER(?)", (email,))
-            conn.commit()
-            print("SQLite tables and Admin account ready.")
+@app.teardown_request
+def close_connections(error):
+    for filename in g.pop("uploads", []):
+        remove_image_file(filename, immediate=True)
+    for conn in g.pop("connections", []):
         conn.close()
-    except Exception as e:
-        print(f"Error checking/initializing database: {e}")
 
-check_and_init_db()
+
+@app.errorhandler(DatabaseUnavailable)
+def database_unavailable(error):
+    return "ระบบฐานข้อมูลไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง", 503
+
+
+def init_db():
+    # Explicit setup only: never run migrations while importing or handling a request.
+    conn = get_db_connection()
+    try:
+        with open(SCHEMA_POSTGRES_PATH if conn.is_postgres else SCHEMA_PATH, encoding="utf-8") as source:
+            conn.executescript(source.read())
+        # Upgrade the two columns absent from early versions without rewriting user data.
+        for table, column in (("users", "is_admin"), ("items", "views_count")):
+            if conn.is_postgres:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} INTEGER DEFAULT 0")
+            else:
+                columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER DEFAULT 0")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@app.cli.command("init-db")
+def init_db_command():
+    init_db()
+    click.echo("Database schema ready")
+
+
+@app.cli.command("set-admin")
+@click.argument("email")
+@click.password_option(confirmation_prompt=True)
+def set_admin(email, password):
+    """Create or reset an administrator explicitly; never reset on startup."""
+    if not is_valid_mahidol_email(email) or len(password) < 12:
+        raise click.ClickException("Use a Mahidol email and a password of at least 12 characters")
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT INTO users (email, fullname, faculty, password_hash, is_admin) VALUES (?, ?, ?, ?, 1) ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, is_admin = 1",
+                     (email.strip().lower(), "Administrator", "มหาวิทยาลัยมหิดล", generate_password_hash(password, method="pbkdf2:sha256")))
+        user = conn.execute("SELECT id FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
+        conn.execute("INSERT INTO verified_emails (user_id) VALUES (?) ON CONFLICT DO NOTHING", (user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    click.echo("Administrator updated")
+
+
+def csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def protect_requests():
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        expected = session.get("csrf_token", "")
+        supplied = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
+        if not expected or not hmac.compare_digest(expected, supplied):
+            abort(400, "คำขอหมดอายุ กรุณาเปิดหน้าใหม่แล้วลองอีกครั้ง")
+    if request.endpoint in {"report", "edit_item"} and request.method == "POST":
+        form = request.form
+        if form.get("item_type") not in {"lost", "found"} or form.get("category") not in CATEGORIES:
+            abort(400, "ประเภทหรือหมวดหมู่สิ่งของไม่ถูกต้อง")
+        if form.get("item_type") == "found" and form.get("custody_type") not in {"dropped", "keep_self"}:
+            abort(400, "วิธีเก็บสิ่งของไม่ถูกต้อง")
+        for key, limit in (("title", 255), ("faculty_location", 255), ("contact_info", 255), ("description", 10000), ("verification_question", 1000), ("drop_location_detail", 2000)):
+            if len(form.get(key, "")) > limit:
+                abort(400, "ข้อความยาวเกินกำหนด")
+        try:
+            datetime.strptime(form.get("incident_date", ""), "%Y-%m-%d")
+            datetime.strptime(form.get("incident_time", ""), "%H:%M")
+        except ValueError:
+            abort(400, "วันที่หรือเวลาไม่ถูกต้อง")
+    if request.endpoint == "login" and request.method == "POST":
+        # Database-backed counters also work across server workers.
+        conn = get_db_connection()
+        now = time.time()
+        for identity in ("ip:" + (request.remote_addr or "unknown"), "email:" + request.form.get("email", "").strip().lower()):
+            key = hashlib.sha256(identity.encode()).hexdigest()
+            conn.execute("INSERT INTO login_attempts (attempt_key, started, attempts) VALUES (?, ?, 1) ON CONFLICT(attempt_key) DO UPDATE SET attempts = CASE WHEN login_attempts.started < ? THEN 1 ELSE login_attempts.attempts + 1 END, started = CASE WHEN login_attempts.started < ? THEN excluded.started ELSE login_attempts.started END", (key, now, now - 900, now - 900))
+            attempts = conn.execute("SELECT attempts FROM login_attempts WHERE attempt_key = ?", (key,)).fetchone()[0]
+            conn.commit()
+            if attempts > 10:
+                conn.close()
+                return "ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอ 15 นาที", 429, {"Retry-After": "900"}
+        conn.execute("DELETE FROM login_attempts WHERE started < ?", (now - 86400,))
+        conn.commit()
+        conn.close()
+
 
 def admin_required(f):
     @wraps(f)
@@ -547,15 +370,6 @@ def is_valid_mahidol_email(email):
     if not email or not isinstance(email, str):
         return False
     return re.match(MAHIDOL_EMAIL_REGEX, email.strip().lower(), re.IGNORECASE) is not None
-
-def allowed_file(filename, mimetype):
-    if not filename or not isinstance(filename, str) or "." not in filename:
-        return False
-    ext = filename.rsplit(".", 1)[1].lower()
-    has_allowed_ext = ext in ALLOWED_EXTENSIONS
-    mimetype_clean = mimetype.split(";")[0].strip().lower() if mimetype else ""
-    is_allowed_mime = mimetype_clean in ALLOWED_MIME_TYPES
-    return has_allowed_ext and is_allowed_mime
 
 def upload_to_supabase_storage(file_storage, unique_filename):
     """Uploads file to Supabase Storage bucket via REST API."""
@@ -581,39 +395,58 @@ def upload_to_supabase_storage(file_storage, unique_filename):
             if resp.status in (200, 201):
                 return f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{SUPABASE_BUCKET}/{unique_filename}"
     except Exception as e:
-        print(f"Supabase Storage Upload Error: {e}")
+        app.logger.error("Operation failed (%s)", type(e).__name__)
     return None
 
 def save_image(file_storage):
-    """Saves image either to Supabase Cloud Storage (if configured) or local disk."""
-    if file_storage and getattr(file_storage, "filename", None) and file_storage.filename.strip():
-        if allowed_file(file_storage.filename, getattr(file_storage, "mimetype", "")):
-            ext = file_storage.filename.rsplit(".", 1)[1].lower()
-            unique_filename = f"{uuid.uuid4().hex}.{ext}"
-            
-            # If Supabase Cloud Storage is configured, upload to cloud
-            if SUPABASE_URL and SUPABASE_KEY:
-                cloud_url = upload_to_supabase_storage(file_storage, unique_filename)
-                if cloud_url:
-                    return cloud_url
-            
-            # Fallback to local storage
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
-            file_storage.seek(0)
-            file_storage.save(filepath)
-            return unique_filename
-        else:
-            flash("ประเภทไฟล์ไม่ถูกต้อง! อนุญาตเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น", "danger")
-    return None
+    if not file_storage or not file_storage.filename:
+        return None
+    payload = file_storage.read(5 * 1024 * 1024 + 1)
+    if len(payload) > 5 * 1024 * 1024:
+        abort(413)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(payload)) as picture:
+                if picture.format not in {"PNG", "JPEG", "WEBP"} or picture.width * picture.height > 20_000_000:
+                    abort(400, "รองรับ JPG, PNG, WEBP ไม่เกิน 20 ล้านพิกเซล")
+                picture.verify()
+            with Image.open(io.BytesIO(payload)) as picture:
+                picture = ImageOps.exif_transpose(picture).convert("RGB")
+                # New encoding discards EXIF/GPS and any appended non-image bytes.
+                clean = Image.new("RGB", picture.size)
+                clean.paste(picture)
+                output = io.BytesIO()
+                clean.save(output, format="JPEG", quality=85)
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+        abort(400, "ไฟล์ไม่ใช่รูปภาพที่รองรับหรือเสียหาย")
+    output.seek(0)
+    name = uuid.uuid4().hex + ".jpg"
+    upload = FileStorage(stream=output, filename=name, content_type="image/jpeg")
+    if SUPABASE_URL and SUPABASE_KEY:
+        stored = upload_to_supabase_storage(upload, name)
+        if not stored:
+            abort(503, "บันทึกรูปภาพไม่ได้ กรุณาลองใหม่ภายหลัง")
+    elif app.config["PRODUCTION"]:
+        abort(503, "ระบบจัดเก็บรูปภาพไม่พร้อมใช้งาน")
+    else:
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+        upload.save(os.path.join(app.config["UPLOAD_FOLDER"], name))
+        stored = name
+    g.setdefault("uploads", []).append(stored)
+    return stored
 
-def remove_image_file(filename):
+def remove_image_file(filename, immediate=False):
+    if has_request_context() and not immediate:
+        g.setdefault("pending_image_deletes", []).append(filename)
+        return
     """Deletes image file from either Supabase Cloud Storage or local disk."""
     if not filename or not isinstance(filename, str):
         return
     
     # If image is stored in Supabase
     if filename.startswith("http://") or filename.startswith("https://"):
-        if SUPABASE_URL and SUPABASE_KEY and SUPABASE_BUCKET in filename:
+        if SUPABASE_URL and SUPABASE_KEY and filename.startswith(f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{SUPABASE_BUCKET}/"):
             try:
                 obj_name = filename.rsplit("/", 1)[-1]
                 endpoint = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/{SUPABASE_BUCKET}/{obj_name}"
@@ -627,7 +460,7 @@ def remove_image_file(filename):
                 )
                 urllib.request.urlopen(req, timeout=5)
             except Exception as e:
-                print(f"Supabase Storage Delete Error: {e}")
+                app.logger.error("Operation failed (%s)", type(e).__name__)
         return
 
     # If image is stored locally
@@ -637,7 +470,7 @@ def remove_image_file(filename):
         try:
             os.remove(filepath)
         except Exception as e:
-            print(f"Error removing local file {safe_filename}: {e}")
+            app.logger.error("Operation failed (%s)", type(e).__name__)
 
 def login_required(f):
     @wraps(f)
@@ -645,21 +478,24 @@ def login_required(f):
         if "user_id" not in session:
             flash("กรุณาเข้าสู่ระบบด้วยอีเมลมหาวิทยาลัยมหิดลก่อนทำรายการ", "warning")
             return redirect(url_for("login"))
+        conn = get_db_connection()
+        user = conn.execute("SELECT id FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        conn.close()
+        if not user:
+            session.clear()
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
 # จัดการ Error 413 เมื่ออัปโหลดไฟล์เกิน 5MB
 @app.errorhandler(413)
 def file_too_large(e):
-    flash("ขนาดไฟล์รูปภาพเกินขีดจำกัด (สูงสุด 5 MB ต่อไฟล์) กรุณาลดขนาดรูปภาพก่อนอัปโหลด", "danger")
-    return redirect(request.referrer or url_for("index"))
+    return "รูปภาพต้องไม่เกิน 5 MB ต่อไฟล์ และ 16 MB รวมทั้งคำขอ", 413
 
 # จัดการ Error 500 ให้แสดงผลสวยงามและแจ้งเตือนผู้ใช้แทนหน้าขาว
 @app.errorhandler(500)
 def internal_server_error(e):
-    print(f"Internal Server Error 500: {e}")
-    flash("เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง", "danger")
-    return redirect(url_for("index"))
+    return "เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่ภายหลัง", 500
 
 # ----------------- AUTHENTICATION ----------------- #
 
@@ -693,8 +529,8 @@ def register():
             flash("รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน", "danger")
             return render_template("register.html", form_data=request.form)
 
-        if len(password) < 6:
-            flash("รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร เพื่อความปลอดภัย", "danger")
+        if len(password) < 12:
+            flash("รหัสผ่านต้องมีความยาวอย่างน้อย 12 ตัวอักษร เพื่อความปลอดภัย", "danger")
             return render_template("register.html", form_data=request.form)
 
         hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
@@ -708,17 +544,19 @@ def register():
                 flash("อีเมลมหิดลนี้ถูกลงทะเบียนไว้ในระบบแล้ว สามารถเข้าสู่ระบบได้ทันที", "warning")
                 return redirect(url_for("login"))
 
-            is_adm = 1 if email in ADMIN_EMAILS else 0
+            is_adm = 0
             conn.execute(
                 "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
                 (email, fullname, faculty, hashed_password, contact_phone, is_adm)
             )
             conn.commit()
             conn.close()
-            flash("สมัครสมาชิกสำเร็จ! เข้าสู่ระบบด้วยอีเมลมหิดลของคุณได้ทันที", "success")
+            flash("สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบด้วย Google อีเมลเดียวกันหนึ่งครั้งเพื่อยืนยันอีเมล แล้วตั้งรหัสผ่านใหม่", "success")
             return redirect(url_for("login"))
+        except DatabaseUnavailable:
+            raise
         except Exception as e:
-            print(f"Registration error: {e}")
+            app.logger.error("Operation failed (%s)", type(e).__name__)
             flash("เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง", "danger")
             return render_template("register.html", form_data=request.form)
 
@@ -739,56 +577,28 @@ def login():
 
         try:
             conn = get_db_connection()
-            user = None
-            try:
-                user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
-            except Exception as e:
-                print(f"Initial user query failed ({e}), re-initializing tables...")
-                try:
-                    check_and_init_db()
-                    conn = get_db_connection()
-                    user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
-                except Exception:
-                    pass
-
-            # Primary Admin Auto-Fallback & Recovery
-            if email == DEFAULT_ADMIN_EMAIL.lower():
-                if password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&":
-                    if not user:
-                        conn.execute(
-                            "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-                            (DEFAULT_ADMIN_EMAIL, "พลพงศ์ บำรุงตา", "คณะวิศวกรรมศาสตร์", DEFAULT_ADMIN_PW_HASH, "0812345678", 1)
-                        )
-                        conn.commit()
-                        user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
-                    else:
-                        conn.execute("UPDATE users SET password_hash = ?, is_admin = 1 WHERE LOWER(email) = LOWER(?)", (DEFAULT_ADMIN_PW_HASH, email))
-                        conn.commit()
-                        user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
-
+            user = conn.execute("SELECT users.* FROM users JOIN verified_emails ON verified_emails.user_id = users.id WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
             conn.close()
 
             # 6. ถ้าไม่มีอีเมลนี้ในระบบ ให้แจ้งเตือนว่ายังไม่ได้สมัครสมาชิก
             if not user:
-                flash("ไม่พบอีเมลนี้ในระบบ กรุณาสมัครสมาชิกก่อนเข้าใช้งาน", "warning")
+                flash("อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือยังไม่ได้ยืนยันอีเมลผ่าน Google", "warning")
                 return render_template("login.html", email=email, unregistered=True)
 
             user_dict = dict(user)
             is_match = False
             try:
-                is_match = check_password_hash(user_dict["password_hash"], password) or check_password_hash(user_dict["password_hash"], password.strip())
+                is_match = check_password_hash(user_dict["password_hash"], password)
             except Exception:
                 pass
-            if not is_match and (password == "Pponmahidol69&" or password.strip() == "Pponmahidol69&") and email == DEFAULT_ADMIN_EMAIL.lower():
-                is_match = True
-
             if is_match:
+                session.clear()
                 session["user_id"] = user_dict["id"]
                 session["email"] = user_dict["email"]
                 session["fullname"] = user_dict["fullname"]
                 session["faculty"] = user_dict["faculty"]
                 user_email = str(user_dict.get("email") or "").lower().strip()
-                is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
+                is_adm = 1 if user_dict.get("is_admin") == 1 else 0
                 session["is_admin"] = is_adm
                 flash(f"ยินดีต้อนรับคุณ {user_dict['fullname']} ({user_dict['email']})", "success")
                 return redirect(url_for("index"))
@@ -797,14 +607,16 @@ def login():
             flash("รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบตัวพิมพ์เล็ก-ใหญ่และลองใหม่อีกครั้ง", "danger")
             return render_template("login.html", email=email, unregistered=False)
 
+        except DatabaseUnavailable:
+            raise
         except Exception as e:
-            print(f"Login error: {e}")
-            flash(f"เกิดข้อผิดพลาดในการเข้าสู่ระบบ ({e}) กรุณาลองใหม่อีกครั้ง", "danger")
+            app.logger.error("Operation failed (%s)", type(e).__name__)
+            flash("เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง", "danger")
             return render_template("login.html", email=email, unregistered=False)
 
     return render_template("login.html", email="", unregistered=False)
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
     flash("ออกจากระบบเรียบร้อยแล้ว", "info")
@@ -840,10 +652,13 @@ def login_google():
     
     redirect_uri = get_google_redirect_uri()
 
+    session["oauth_state"] = secrets.token_urlsafe(32)
+    session["oauth_started"] = time.time()
     google_auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={urllib.parse.quote(client_id)}&"
         f"redirect_uri={urllib.parse.quote(redirect_uri)}&"
+        f"state={session['oauth_state']}&"
         "response_type=code&"
         "scope=openid%20email%20profile&"
         "prompt=select_account"
@@ -852,6 +667,10 @@ def login_google():
 
 @app.route("/login/google/callback")
 def login_google_callback():
+    expected = session.pop("oauth_state", "")
+    started = session.pop("oauth_started", 0)
+    if not expected or not hmac.compare_digest(expected, request.args.get("state", "")) or not 0 <= time.time() - started <= 600:
+        abort(400, "คำขอเข้าสู่ระบบไม่ถูกต้องหรือหมดอายุ")
     code = request.args.get("code")
     error = request.args.get("error")
     
@@ -895,6 +714,9 @@ def login_google_callback():
         email = userinfo.get("email", "").strip().lower()
         fullname = userinfo.get("name", "").strip() or email.split("@")[0]
 
+        if userinfo.get("email_verified") is not True:
+            abort(403, "กรุณายืนยันอีเมลกับ Google ก่อน")
+
         # Verify Mahidol email domain
         if not is_valid_mahidol_email(email):
             flash(f"อีเมล {email} ไม่ใช่อีเมลของมหาวิทยาลัยมหิดล! ระบบอนุญาตเฉพาะบัญชี @student.mahidol.ac.th หรือ @mahidol.edu เท่านั้น", "danger")
@@ -906,7 +728,7 @@ def login_google_callback():
         if not user:
             # Auto-register Google Mahidol user
             dummy_hash = generate_password_hash(uuid.uuid4().hex, method="pbkdf2:sha256")
-            is_adm = 1 if email.lower() in ADMIN_EMAILS else 0
+            is_adm = 0
             conn.execute(
                 "INSERT INTO users (email, fullname, faculty, password_hash, contact_phone, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
                 (email, fullname, "มหาวิทยาลัยมหิดล (Google Sign-In)", dummy_hash, "", is_adm)
@@ -914,100 +736,109 @@ def login_google_callback():
             conn.commit()
             user = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
         
+        first_verification = conn.execute("SELECT user_id FROM verified_emails WHERE user_id = ?", (user["id"],)).fetchone() is None
+        if first_verification:
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(secrets.token_urlsafe(32), method="pbkdf2:sha256"), user["id"]))
+        conn.execute("INSERT INTO verified_emails (user_id) VALUES (?) ON CONFLICT DO NOTHING", (user["id"],))
+        conn.commit()
         user_dict = dict(user)
         conn.close()
+        session.clear()
 
         user_email = str(user_dict.get("email") or "").lower().strip()
-        is_adm = 1 if (user_email in ADMIN_EMAILS or user_dict.get("is_admin") == 1) else 0
+        is_adm = 1 if user_dict.get("is_admin") == 1 else 0
 
         session["user_id"] = user_dict["id"]
         session["email"] = user_dict["email"]
         session["fullname"] = user_dict["fullname"]
         session["faculty"] = user_dict["faculty"]
         session["is_admin"] = is_adm
+        session["google_verified_at"] = time.time()
+        if first_verification:
+            return redirect(url_for("set_password"))
 
         flash(f"เข้าสู่ระบบด้วย Google สำเร็จ! ยินดีต้อนรับคุณ {user_dict['fullname']}", "success")
         return redirect(url_for("index"))
 
+    except (DatabaseUnavailable, HTTPException):
+        raise
     except Exception as e:
-        print(f"Google OAuth Error: {e}")
-        flash(f"เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google ({e})", "danger")
+        app.logger.error("Operation failed (%s)", type(e).__name__)
+        flash("เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google", "danger")
         return redirect(url_for("login"))
+
+@app.route("/account/password", methods=["GET", "POST"])
+@login_required
+def set_password():
+    if time.time() - session.get("google_verified_at", 0) > 600:
+        flash("กรุณาออกจากระบบและเข้าสู่ระบบด้วย Google อีกครั้งก่อนตั้งรหัสผ่าน", "warning")
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if len(password) < 12 or password != request.form.get("confirm_password"):
+            flash("ใช้รหัสผ่านอย่างน้อย 12 ตัวอักษร และยืนยันให้ตรงกัน", "danger")
+            return render_template("set_password.html"), 400
+        conn = get_db_connection()
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(password, method="pbkdf2:sha256"), session["user_id"]))
+        conn.commit()
+        conn.close()
+        session.pop("google_verified_at", None)
+        flash("ตั้งรหัสผ่านเรียบร้อยแล้ว", "success")
+        return redirect(url_for("index"))
+    return render_template("set_password.html")
+
 
 # ----------------- ITEM ACTIONS ----------------- #
 
 @app.route("/")
 def index():
-    try:
-        conn = get_db_connection()
-        all_items = conn.execute("""
-            SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty 
-            FROM items 
-            LEFT JOIN users ON items.user_id = users.id 
-            ORDER BY incident_date DESC, incident_time DESC, items.id DESC
-        """).fetchall()
-
-        # Stats for Hero Section
-        total_returned_row = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'returned'").fetchone()
-        total_returned = total_returned_row[0] if total_returned_row else 0
-        total_active_row = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'active'").fetchone()
-        total_active = total_active_row[0] if total_active_row else 0
-        total_members_row = conn.execute("SELECT COUNT(*) FROM users").fetchone()
-        total_members = total_members_row[0] if total_members_row else 0
-        conn.close()
-
-        # 7. Pagination Logic (หน้าละ 9 รายการ)
-        page = request.args.get("page", 1, type=int)
-        if page < 1:
-            page = 1
-        PER_PAGE = 9
-        total_items = len(all_items)
-        total_pages = max(1, math.ceil(total_items / PER_PAGE))
-        if page > total_pages:
-            page = total_pages
-
-        start_idx = (page - 1) * PER_PAGE
-        end_idx = start_idx + PER_PAGE
-        items = all_items[start_idx:end_idx]
-
-        pagination = {
-            "page": page,
-            "per_page": PER_PAGE,
-            "total_items": total_items,
-            "total_pages": total_pages,
-            "has_prev": page > 1,
-            "has_next": page < total_pages,
-            "prev_num": page - 1,
-            "next_num": page + 1,
-            "start_count": start_idx + 1 if total_items > 0 else 0,
-            "end_count": min(end_idx, total_items)
-        }
-
-        stats = {
-            "returned_count": total_returned,
-            "active_count": total_active,
-            "member_count": total_members
-        }
-
-        return render_template("index.html", items=items, all_items=all_items, pagination=pagination, stats=stats)
-    except Exception as e:
-        print(f"Index route DB exception: {e}")
-        try:
-            check_and_init_db()
-        except Exception:
-            pass
-        pagination = {"page": 1, "per_page": 9, "total_items": 0, "total_pages": 1, "has_prev": False, "has_next": False, "start_count": 0, "end_count": 0}
-        stats = {"returned_count": 0, "active_count": 0, "member_count": 0}
-        return render_template("index.html", items=[], all_items=[], pagination=pagination, stats=stats)
+    conn = get_db_connection()
+    filters = {key: request.args.get(key, "").strip() for key in ("q", "category", "location", "item_type", "date")}
+    clauses, params = [], []
+    if filters["q"]:
+        clauses.append("(LOWER(items.title) LIKE ? OR LOWER(COALESCE(items.description, '')) LIKE ? OR LOWER(items.faculty_location) LIKE ?)")
+        params.extend(["%" + filters["q"].lower() + "%"] * 3)
+    for key, column in (("category", "category"), ("location", "faculty_location"), ("item_type", "item_type")):
+        if filters[key]:
+            clauses.append(f"items.{column} = ?")
+            params.append(filters[key])
+    if filters["date"]:
+        clauses.append("items.incident_date >= ?")
+        params.append(filters["date"])
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    total = conn.execute("SELECT COUNT(*) FROM items" + where, params).fetchone()[0]
+    pages = max(1, math.ceil(total / 9))
+    page = min(pages, max(1, request.args.get("page", 1, type=int)))
+    items = conn.execute("SELECT items.*, users.fullname as poster_name, users.faculty as poster_faculty FROM items LEFT JOIN users ON items.user_id = users.id" + where + " ORDER BY incident_date DESC, incident_time DESC, items.id DESC LIMIT ? OFFSET ?", params + [9, (page - 1) * 9]).fetchall()
+    stats = {"returned_count": conn.execute("SELECT COUNT(*) FROM items WHERE status = 'returned'").fetchone()[0], "active_count": conn.execute("SELECT COUNT(*) FROM items WHERE status = 'active'").fetchone()[0], "member_count": conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]}
+    conn.close()
+    pagination = dict(page=page, total_pages=pages, total_items=total, has_prev=page > 1, has_next=page < pages, prev_num=page-1, next_num=page+1, start_count=(page-1)*9+1 if total else 0, end_count=min(page*9,total))
+    return render_template("index.html", items=items, pagination=pagination, stats=stats, filters=filters)
 
 @app.route("/report", methods=["GET", "POST"])
 @login_required
 def report():
     if request.method == "POST":
         post_token = request.form.get("post_token", "").strip()
-        if post_token and session.get("last_processed_post_token") == post_token:
-            flash("ลงประกาศเรียบร้อยแล้ว!", "success")
-            return redirect(url_for("index"))
+        if not re.fullmatch(r"[a-f0-9]{32}", post_token):
+            abort(400, "กรุณาเปิดฟอร์มใหม่")
+        fingerprint_data = sorted((k, v) for k, v in request.form.items() if k not in {"csrf_token", "post_token"})
+        file_hashes = []
+        for key, file in request.files.items():
+            data = file.stream.read(5 * 1024 * 1024 + 1)
+            if len(data) > 5 * 1024 * 1024:
+                abort(413)
+            file_hashes.append((key, hashlib.sha256(data).hexdigest()))
+            file.stream.seek(0)
+        fingerprint = hashlib.sha256(json.dumps([fingerprint_data, sorted(file_hashes)], ensure_ascii=False).encode()).hexdigest()
+        conn = get_db_connection()
+        claimed = conn.execute("INSERT INTO submissions (user_id, token, fingerprint) VALUES (?, ?, ?) ON CONFLICT DO NOTHING", (session["user_id"], post_token, fingerprint)).rowcount
+        if not claimed:
+            existing = conn.execute("SELECT fingerprint, item_id FROM submissions WHERE user_id = ? AND token = ?", (session["user_id"], post_token)).fetchone()
+            conn.close()
+            if existing["fingerprint"] != fingerprint:
+                abort(409, "รหัสคำขอนี้ถูกใช้กับข้อมูลอื่นแล้ว กรุณาเปิดฟอร์มใหม่")
+            return redirect(url_for("detail", item_id=existing["item_id"]))
 
         title = request.form.get("title", "").strip()
         category = request.form.get("category", "").strip()
@@ -1058,45 +889,22 @@ def report():
         item_image = save_image(request.files.get("item_image"))
         found_spot_image = save_image(request.files.get("found_spot_image"))
 
-        conn = get_db_connection()
-
-        # ป้องกันการกดยืนยันประกาศซ้ำจากการกดเบิ้ลทันที (Rapid double-click prevention)
-        recent_duplicate = conn.execute("""
-            SELECT id FROM items 
-            WHERE user_id = ? AND title = ? AND item_type = ?
-            ORDER BY id DESC LIMIT 1
-        """, (session["user_id"], title, item_type)).fetchone()
-
-        if recent_duplicate and session.get("last_created_item_id"):
-            dup_id = recent_duplicate["id"] if hasattr(recent_duplicate, "__getitem__") else recent_duplicate[0]
-            if session.get("last_created_item_id") == dup_id:
-                conn.close()
-                flash("ลงประกาศเรียบร้อยแล้ว!", "success")
-                return redirect(url_for("detail", item_id=dup_id))
-
-        conn.execute("""
+        inserted = conn.execute("""
             INSERT INTO items (
                 user_id, title, category, item_type, faculty_location,
                 incident_date, incident_time, description, verification_question,
                 item_image, found_spot_image, custody_type,
                 drop_location_detail, drop_spot_image, contact_info
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         """, (
             session["user_id"], title, category, item_type, faculty_location,
             incident_date, incident_time, description, verification_question,
             item_image, found_spot_image, custody_type,
             drop_location_detail, drop_spot_image, contact_info
         ))
+        new_id = inserted.fetchone()[0]
+        conn.execute("UPDATE submissions SET item_id = ? WHERE user_id = ? AND token = ?", (new_id, session["user_id"], post_token))
         conn.commit()
-
-        # ดึง ID รายการที่เพิ่งบันทึก และบันทึก Token ว่าสำเร็จแล้ว
-        new_row = conn.execute("SELECT id FROM items WHERE user_id = ? ORDER BY id DESC LIMIT 1", (session["user_id"],)).fetchone()
-        if new_row:
-            new_id = new_row["id"] if hasattr(new_row, "__getitem__") else new_row[0]
-            session["last_created_item_id"] = new_id
-        if post_token:
-            session["last_processed_post_token"] = post_token
-
         conn.close()
 
         flash("ลงประกาศเรียบร้อยแล้ว!", "success")
@@ -1420,9 +1228,17 @@ def admin_toggle_status(item_id):
     conn.close()
     return redirect(url_for("admin_dashboard"))
 
+@app.route("/health")
+def health():
+    conn = get_db_connection()
+    conn.execute("SELECT 1")
+    conn.close()
+    return {"status": "ok"}
+
+
 @app.route("/db-status")
+@admin_required
 def db_status():
-    global LAST_DB_ERROR, CURRENT_DB_TYPE
     conn = get_db_connection()
     is_pg = conn.is_postgres
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -1430,17 +1246,16 @@ def db_status():
     conn.close()
     return {
         "is_cloud_postgres": is_pg,
-        "database_engine": CURRENT_DB_TYPE,
-        "is_data_persistent": is_pg,
+        "database_engine": "PostgreSQL" if is_pg else "SQLite",
+        "is_data_persistent": is_pg or app.config["DATABASE_PATH"] != ":memory:",
         "total_users": user_count,
         "total_items": item_count,
         "database_url_configured": bool(os.environ.get("DATABASE_URL")),
-        "last_connection_error": LAST_DB_ERROR,
-        "warning": None if is_pg else "⚠️ Website is currently falling back to temporary SQLite. Posts and users will reset on redeploy until cloud PostgreSQL is connected!"
+
+
     }
 
 if __name__ == "__main__":
-    check_and_init_db()
     port = int(os.environ.get("PORT", 5001))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(debug=False, host="0.0.0.0", port=port)
 

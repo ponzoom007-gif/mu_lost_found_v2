@@ -147,6 +147,7 @@
                             แก้ไขข้อมูลประกาศ
                         </a>
                         <form action="{{ url_for('delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้ถาวร? รูปภาพทั้งหมดจะถูกลบด้วย');" style="margin: 0;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-detail" style="background: #EF4444; color: white; border-color: #DC2626; cursor: pointer; padding: 10px 18px;">
                                 ลบประกาศ
                             </button>
@@ -158,6 +159,7 @@
                 {% if item['status'] == 'active' %}
                     {% if session.get('user_id') == item['user_id'] %}
                         <form action="{{ url_for('mark_returned', item_id=item['id']) }}" method="POST" onsubmit="return confirm('{{ 'ยืนยันว่าได้รับของคืนเรียบร้อยแล้วใช่หรือไม่?' if item['item_type'] == 'lost' else 'ยืนยันว่าส่งคืนเจ้าของเรียบร้อยแล้วใช่หรือไม่?' }}');" style="margin-top: 10px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-success-action">
                                 {{ "ได้รับของคืนแล้ว (ปิดประกาศ)" if item['item_type'] == 'lost' else "ส่งคืนเจ้าของสำเร็จแล้ว (ปิดประกาศ)" }}
                             </button>
@@ -195,11 +197,13 @@
                         <strong style="color: #6B21A8; font-size: 0.9rem; display: block; margin-bottom: 8px;">การจัดการในฐานะ Admin:</strong>
                         <div style="display: flex; gap: 8px;">
                             <form action="{{ url_for('admin_toggle_status', item_id=item['id']) }}" method="POST" style="flex: 1; margin: 0;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-detail" style="background: #9333EA; color: white; border: none; width: 100%; cursor: pointer;">
                                     {{ "สลับเป็นกำลังติดตาม" if item['status'] == 'returned' else "สลับเป็นส่งคืนแล้ว" }}
                                 </button>
                             </form>
                             <form action="{{ url_for('admin_delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('แอดมินยืนยันลบโพสต์นี้ถาวร?');" style="margin: 0;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-detail" style="background: #DC2626; color: white; border: none; cursor: pointer; padding: 10px 16px;">
                                     ลบโพสต์
                                 </button>

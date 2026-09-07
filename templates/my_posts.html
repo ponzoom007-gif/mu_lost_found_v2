@@ -44,6 +44,7 @@
                 <a href="{{ url_for('detail', item_id=item['id']) }}" class="btn-detail" style="flex: 1; text-align: center;">ดูข้อมูล</a>
                 <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn-detail" style="background: #F59E0B; color: white; border-color: #D97706; padding: 10px 14px;">✏️ แก้ไข</a>
                 <form action="{{ url_for('delete_item', item_id=item['id']) }}" method="POST" onsubmit="return confirm('ยืนยันลบโพสต์นี้ถาวรหรือไม่?');" style="margin: 0;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-detail" style="background: #EF4444; color: white; border-color: #DC2626; cursor: pointer; padding: 10px 14px;">🗑️ ลบ</button>
                 </form>
             </div>

@@ -1,9 +1,4 @@
--- =========================================================================
--- MU Lost & Found - PostgreSQL Schema (For Supabase)
--- สามารถคัดลอกไปวางและกด Run ในหน้า Supabase -> SQL Editor ได้ทันที
--- =========================================================================
 
--- 1. ตารางสมาชิกผู้ใช้งาน (Users Table)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -15,10 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. ตารางรายการสิ่งของ (Items Table)
 CREATE TABLE IF NOT EXISTS items (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     category VARCHAR(100) NOT NULL,
     item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('found', 'lost')),
@@ -38,5 +32,20 @@ CREATE TABLE IF NOT EXISTS items (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. กำหนดสิทธิ์ Admin ให้บัญชีหลักอัตโนมัติ
--- UPDATE users SET is_admin = 1 WHERE email = 'ponpong.bum@student.mahidol.ac.th';
+CREATE TABLE IF NOT EXISTS submissions (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(64) NOT NULL,
+    fingerprint VARCHAR(64) NOT NULL,
+    item_id INTEGER,
+    PRIMARY KEY (user_id, token)
+);
+CREATE TABLE IF NOT EXISTS login_attempts (
+    attempt_key VARCHAR(64) PRIMARY KEY,
+    started DOUBLE PRECISION NOT NULL,
+    attempts INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS verified_emails (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS items_feed_idx ON items (incident_date DESC, incident_time DESC, id DESC);
+CREATE INDEX IF NOT EXISTS items_user_idx ON items (user_id);

@@ -36,7 +36,9 @@
         <span>หรือเข้าสู่ระบบด้วยรหัสผ่าน</span>
     </div>
 
+    <p class="form-help-text">บัญชีเดิมและบัญชีใหม่ต้องยืนยันอีเมลผ่าน Google แล้วตั้งรหัสผ่านใหม่หนึ่งครั้งก่อนเข้าสู่ระบบด้วยรหัสผ่าน</p>
     <form method="POST" action="{{ url_for('login') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="email">อีเมลมหาวิทยาลัยมหิดล</label>
             <input type="email" id="email" name="email" value="{{ email or '' }}" required

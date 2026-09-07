@@ -49,3 +49,8 @@ CREATE TABLE IF NOT EXISTS verified_emails (
 );
 CREATE INDEX IF NOT EXISTS items_feed_idx ON items (incident_date DESC, incident_time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS items_user_idx ON items (user_id);
+
+-- Only the trusted server connection may access authentication/request metadata.
+ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE verified_emails ENABLE ROW LEVEL SECURITY;

@@ -787,10 +787,16 @@ def login_google_callback():
 @app.route("/account/password", methods=["GET", "POST"])
 @login_required
 def set_password():
-    if time.time() - session.get("google_verified_at", 0) > 600:
-        flash("กรุณาออกจากระบบและเข้าสู่ระบบด้วย Google อีกครั้งก่อนตั้งรหัสผ่าน", "warning")
-        return redirect(url_for("index"))
+    google_verified_recently = time.time() - session.get("google_verified_at", 0) <= 600
     if request.method == "POST":
+        if not google_verified_recently:
+            current_password = request.form.get("current_password", "")
+            conn = get_db_connection()
+            user = conn.execute("SELECT password_hash FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+            conn.close()
+            if not user or not check_password_hash(user["password_hash"], current_password):
+                flash("กรุณากรอกรหัสผ่านปัจจุบันให้ถูกต้องก่อนเปลี่ยนรหัสผ่าน", "danger")
+                return render_template("set_password.html", requires_current_password=True), 400
         password = request.form.get("password", "")
         if len(password) < 12 or password != request.form.get("confirm_password"):
             flash("ใช้รหัสผ่านอย่างน้อย 12 ตัวอักษร และยืนยันให้ตรงกัน", "danger")
